@@ -20,3 +20,20 @@ tv-apps/vega/src/guest.json
 *.apk
 .DS_Store
 tv-apps/tvos/Config/Signing.mine.xcconfig
+# managed apartments (host dashboard): everything the host types or uploads stays out of git
+data/guesttv.db*
+data/property.json
+data/photos/
+data/archive/
+data/homes/*/
+!data/homes/carriage/
+!data/homes/guest/
+!data/homes/headland/
+!data/homes/lake/
+!data/homes/ridge/
+data.before-restore/
+demo-data/
+demo-data.before-restore/
+backups/
+logs/
+*.pid

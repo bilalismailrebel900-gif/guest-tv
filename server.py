@@ -7,13 +7,15 @@ Homes live in data/homes/<id>/ (home.json + guide.json). Private values (the rea
 door codes, the guest's name, the aircon address) live in data/private.json, which never leaves this
 computer. The couch-tv TV app can show this page: point its bridge at this server.
 """
-import asyncio, datetime as dt, hashlib, hmac, ipaddress, json, os, re, secrets, socket, threading, time, urllib.parse, urllib.request
+import asyncio, datetime as dt, hashlib, hmac, ipaddress, json, os, re, secrets, socket, sys, threading, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
+import access, content, stays, store, tvlink
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
-DATA = os.path.join(HERE, "data")
-TZ = dt.timezone(dt.timedelta(hours=11))   # replaced from the weather answer (utc_offset_seconds)
+DATA = store.DATA   # data/, or GUEST_TV_DATA (demo mode, tests)
+TZ = dt.timezone(dt.timedelta(hours=11))   # replaced from the weather answer (utc_offset_seconds), unless "timezone" is set
 
 
 def jread(p, default=None):
@@ -25,6 +27,7 @@ def jread(p, default=None):
 
 
 def jwrite(p, obj):
+    os.makedirs(os.path.dirname(p), exist_ok=True)
     tmp = p + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
@@ -35,14 +38,16 @@ def private():
     p = os.path.join(DATA, "private.json")
     pv = jread(p)
     if pv is None:   # first run: make one with a fresh host key
-        pv = jread(os.path.join(DATA, "private.example.json"), {}) or {}
+        pv = (jread(os.path.join(DATA, "private.example.json"), {}) or {}) if not settings().get("managed") else {}
         pv["host_key"] = secrets.token_urlsafe(9)
         jwrite(p, pv)
     return pv
 
 
 def settings():
-    return {**(jread(os.path.join(DATA, "settings.json"), {}) or {})}
+    """settings.json, with what the host changed in the dashboard (data/property.json) laid over it."""
+    base = jread(os.path.join(DATA, "settings.json")) or jread(os.path.join(HERE, "data", "settings.json"), {}) or {}
+    return merge(base, store.prop())
 
 
 def merge(a, b):
@@ -63,6 +68,12 @@ def load_home(hid):
     base = jread(os.path.join(DATA, "homes", hid, "home.json"), {})
     h = merge(base, private().get("homes", {}).get(hid, {}))
     h["guide"] = jread(os.path.join(DATA, "homes", hid, "guide.json"), {}) or {}
+    if h.get("managed"):   # an apartment run from the host dashboard: the property's reception is the fallback
+        s = settings()
+        rc = {k: v for k, v in (h.get("reception") or {}).items() if v}
+        h["reception"] = merge(s.get("reception") or {}, rc)
+        h["city"] = (s.get("weather") or {}).get("place", "")
+        h.setdefault("id", hid)
     film = settings().get("film") and jread(os.path.join(DATA, "homes", hid, "film.json"))
     if film:   # film mode: demo host, Wi-Fi and picks over the real ones, so nothing private is on camera
         h = merge(h, {k: v for k, v in film.items() if not k.startswith("_")})
@@ -70,7 +81,7 @@ def load_home(hid):
 
 
 def now():
-    return dt.datetime.now(TZ)
+    return stays.CLOCK() if stays.CLOCK else dt.datetime.now(TZ)
 
 
 def at(day, hhmm):
@@ -110,8 +121,14 @@ def ical_stays(url):
     return out
 
 
+def managed_stay(h):
+    return stays.current(h["id"], h.get("checkin"), h.get("checkout"), now()) or {"phase": "between", "guest": "", "active": False}
+
+
 def stay_of(h):
     """Where we are in a stay: before, arrival (today, before check-in), during, lastday, between."""
+    if h.get("managed"):   # bookings from the host dashboard and the Airbnb calendar sync (stays.py)
+        return managed_stay(h)
     t = now()
     today = t.date()
     stays = []
@@ -183,7 +200,19 @@ def booking_loop():
 
 # ---------------------------------------------------------------- weather (Open-Meteo, free, no key)
 
-wx_cache = {}
+wx_cache, wx_fail = {}, {}
+
+
+def sample_weather(w):
+    """No forecast could be fetched. Normally the screens then simply show no weather. In demo mode
+    only, a made-up forecast stands in, and the place is marked "(sample)" so nobody reads it as real."""
+    if not demo_mode():
+        return {"place": w["place"], "ok": False}
+    today = now().date()
+    codes, hi, lo = [1, 2, 0, 3, 61, 1, 0], [24, 25, 26, 23, 21, 24, 25], [11, 12, 12, 13, 12, 10, 11]
+    return {"ok": True, "sample": True, "place": w["place"] + " (sample)", "now": {"temp": 22, "code": 1, "day": 1},
+            "days": [{"date": (today + dt.timedelta(days=i)).isoformat(), "code": codes[i], "hi": hi[i], "lo": lo[i], "rain": 60 if codes[i] > 50 else 5,
+                      "sunrise": "06:30", "sunset": "17:05"} for i in range(7)]}
 
 
 def weather(days=7):
@@ -197,11 +226,15 @@ def weather(days=7):
         "latitude": w["lat"], "longitude": w["lon"], "timezone": w.get("tz", "auto"), "forecast_days": days,
         "current": "temperature_2m,weather_code,is_day",
         "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"})
+    if wx_fail.get(key, 0) > time.time():   # it failed a moment ago: do not make every screen wait again
+        return c[1] if c else sample_weather(w)
     try:
         d = json.loads(urllib.request.urlopen("https://api.open-meteo.com/v1/forecast?" + q, timeout=10).read())
     except Exception:
-        return c[1] if c else {"place": w["place"], "ok": False}
-    TZ = dt.timezone(dt.timedelta(seconds=d.get("utc_offset_seconds", 39600)))
+        wx_fail[key] = time.time() + 300
+        return c[1] if c else sample_weather(w)
+    if not settings().get("timezone"):
+        TZ = dt.timezone(dt.timedelta(seconds=d.get("utc_offset_seconds", 39600)))
     dl = d["daily"]
     out = {"ok": True, "place": w["place"],
            "now": {"temp": round(d["current"]["temperature_2m"]), "code": d["current"]["weather_code"], "day": d["current"]["is_day"]},
@@ -429,12 +462,28 @@ def aircon_set(h, body):
 
 # ---------------------------------------------------------------- what the screens get
 
-def public_state(h, for_host=False, phase=None):
+def preview_stay(h, phase):
+    """A pretend stay for looking at one moment of a stay on a managed apartment's screen (the host's
+    preview and demo mode only). It is never a real booking: no guest link comes with it."""
+    today, cin, cout = now().date(), h.get("checkin"), h.get("checkout")
+    if phase == "between":
+        return {"phase": "between", "guest": "", "active": False, "preview": True}
+    a = today if phase == "arrival" else today - dt.timedelta(days=3 if phase == "lastday" else 1)
+    d = a + dt.timedelta(days=3)
+    return {"phase": phase, "guest": "Ayesha", "guests": 2, "active": True, "preview": True, "from": a.isoformat(), "to": d.isoformat(),
+            "checkin": at(a, cin).isoformat(), "checkout": at(d, cout).isoformat(), "nights": 3,
+            "night": 3 if phase == "lastday" else 1 if phase == "arrival" else 2}
+
+
+def public_state(h, for_host=False, phase=None, tv=None):
     s = stay_of(h)
     if h.get("demo") and phase in ("arrival", "during", "lastday", "between"):   # demo homes: try each moment of a stay
         s.update(phase=phase, active=phase != "between")
         if phase == "lastday":
             s["night"] = s.get("nights", 1)
+    elif h.get("managed") and phase in ("arrival", "during", "lastday", "between") and (for_host or demo_mode()):
+        s = preview_stay(h, phase)
+    s = {k: v for k, v in s.items() if k != "booking"}
     show_private = s["active"] or h.get("mode") == "guest" or for_host
     g = h.get("guide", {})
     guest_room = h.get("mode") == "guest"   # family and friends: no house rules, no check-out
@@ -447,8 +496,14 @@ def public_state(h, for_host=False, phase=None):
         "welcome": g.get("welcome", ""), "rules": [] if guest_room else g.get("rules", []), "howto": g.get("howto", []),
         "local": g.get("local", []), "checkout": {} if guest_room else g.get("checkout", {}), "emergency": g.get("emergency", []),
         "notes": h.get("notes", []), "phone_url": phone_url(h["id"]),
-        "remote_url": remote_url(h) if show_private else None,
+        "remote_url": remote_url(h, tv) if show_private and not s.get("preview") else None,
         "homes": [{"id": i, "name": (jread(os.path.join(DATA, "homes", i, "home.json"), {}) or {}).get("name", i)} for i in home_ids()],
+        # the managed apartments (host dashboard): reception, the property's clock, and which TV this screen is
+        "managed": bool(h.get("managed")), "reception": h.get("reception") or {}, "property": settings().get("property", ""),
+        "tz_offset_min": int(now().utcoffset().total_seconds() // 60), "demo_mode": demo_mode(),
+        "clock_fixed": now().strftime("%H:%M") if stays.CLOCK else None,
+        "screen": {"id": tv["id"], "name": tv["name"], "simulated": not tvlink.is_live(tv)} if tv else None,
+        "sample_photos": str((h.get("photos") or {}).get("hero", "")).startswith("sample-"),
     }
 
 
@@ -474,6 +529,8 @@ def lan_ip():
 def remote_code(h):
     """The code in the Guest remote link. Guest room: stays until the host resets it. Stay homes:
     one per booking, and none between stays, so a past guest's link stops at check-out."""
+    if h.get("managed"):   # one random token per booking, revocable by staff (access.py)
+        return access.live_token(h["id"], h.get("checkin"), h.get("checkout"), now())
     if h.get("mode") == "guest":
         seed = "%s:room:%s" % (h["id"], h.get("remote_epoch", 0))
     else:
@@ -484,10 +541,94 @@ def remote_code(h):
     return hmac.new(private().get("host_key", "-").encode(), seed.encode(), hashlib.sha256).hexdigest()[:12]
 
 
-def remote_url(h):
+def remote_url(h, tv=None):
     code = remote_code(h)
+    if code and h.get("managed"):
+        return remote_link(h["id"], code, tv["id"] if tv else None)
     base = settings().get("public_url") or "http://%s:%d" % (lan_ip(), PORT)
     return "%s/r/?home=%s&c=%s" % (base.rstrip("/"), h["id"], code) if code else None
+
+
+def demo_mode():
+    return os.environ.get("GUEST_TV_DEMO") == "1"
+
+
+def base_url():
+    """This computer as phones and TVs on the Wi-Fi reach it."""
+    return (settings().get("public_url") or "http://%s:%d" % (lan_ip(), PORT)).rstrip("/")
+
+
+def remote_link(hid, token, tv_id=None):
+    return "%s/r/?home=%s&c=%s%s" % (base_url(), urllib.parse.quote(hid), urllib.parse.quote(token),
+                                     "&tv=" + urllib.parse.quote(tv_id) if tv_id else "")
+
+
+def screen_url(tv_id):
+    """The address a TV shows for its welcome screen: it names the TV, never a key or a guest link."""
+    return "%s/tv/?screen=%s" % ((settings().get("tv_url") or base_url()).rstrip("/"), urllib.parse.quote(tv_id))
+
+
+# ---------------------------------------------------------------- managed apartments: sync and emails
+
+email_state = {"checked": None, "found": 0, "result": {}, "errors": [], "on": False}
+
+
+def sync_now(hid):
+    """Bring one apartment in line with its Airbnb calendar link now (when it has one)."""
+    url = ((store.private().get("homes") or {}).get(hid) or {}).get("ical_url")
+    if not url:
+        store.run("DELETE FROM sync WHERE home = ?", (hid,))
+        return None
+    return stays.sync_home(hid, url)
+
+
+def read_emails():
+    """Optional: Airbnb confirmation and cancellation emails give synced bookings their guest's first
+    name (bookings.py reads data/bookings-inbox/*.eml and, when set up, the mailbox)."""
+    import bookings
+    found, errors = bookings.collect(settings(), store.private())
+    email_state.update(checked=now().isoformat(timespec="minutes"), found=len(found), errors=errors,
+                       result=stays.apply_emails(found) if found else {},
+                       on=bool((settings().get("bookings") or {}).get("imap")) or bool(found))
+
+
+def managed_loop():
+    """Every few minutes: the Airbnb calendars, the booking emails, and forgetting old guest names."""
+    while True:
+        try:
+            for hid in content.ids():
+                sync_now(hid)
+            read_emails()
+            stays.forget_old(int(settings().get("forget_guest_names_after_days", 30)))
+        except Exception as e:
+            email_state["errors"] = [str(e)[:200]]
+        time.sleep(60 * max(5, int(settings().get("sync_every_min", 15))))
+
+
+def managed_remote(h, tv):
+    """What a managed apartment's Guest remote shows: this stay, this apartment's guide and places,
+    and the one TV it may press buttons on. Only ever sent with this booking's own link."""
+    s, g = stay_of(h), h.get("guide", {})
+    st = tvlink.status(tv)
+    apps = []
+    if tv and st["mode"] != "offline":
+        try:
+            apps = guest_apps(h, tvlink.driver(tv))
+        except Exception:
+            apps = []
+    import concierge
+    return {"ok": True, "managed": True, "home": h["id"], "mode": "stay", "place": h.get("name"), "property": h.get("kind"),
+            "guest": s.get("guest", ""), "until": s.get("checkout"),
+            "tv": {"id": tv["id"], "name": tv["name"], "status": st} if tv else {"status": st},
+            "tvs": [{"id": t["id"], "name": t["name"]} for t in tvlink.listing(h["id"])],
+            "tv_on": st["mode"] in ("connected", "simulated"), "apps": [{"id": a["id"], "name": a["name"]} for a in apps],
+            "rooms": [], "pool": None, "speakers": [], "places": places(h), "level": "locked", "ask_limit": concierge.ASKS_PER_HOUR,
+            "concierge": {"ai": concierge.status(settings())["ai"]},
+            "stay": {"from": s.get("from"), "to": s.get("to"), "night": s.get("night"), "nights": s.get("nights"),
+                     "checkin": h.get("checkin"), "checkout": h.get("checkout"), "wifi": h.get("wifi"), "access": h.get("access", []),
+                     "rules": g.get("rules", []), "howto": g.get("howto", []), "checkout_steps": (g.get("checkout") or {}).get("steps", []),
+                     "emergency": g.get("emergency", []), "reception": h.get("reception") or {}, "local": g.get("local", []),
+                     "welcome": g.get("welcome", "")}}
 
 
 def tv_ip(h):
@@ -519,6 +660,12 @@ def start_tv_watchers():
             seen.add((kind, ip))
             tv = tvctl.tv_for(ip, kind)
             tv.page = tv_page(hid, kind)
+            threading.Thread(target=tvbrands.watch, args=(tv,), daemon=True).start()
+    for t in tvlink.listing():   # managed apartments: only TVs that passed their check and were switched to real commands
+        if tvlink.is_live(t) and t["kind"] in tvbrands.KINDS and (t["kind"], t["ip"]) not in seen and settings().get("tv_hook", True) is not False:
+            seen.add((t["kind"], t["ip"]))
+            tv = tvctl.tv_for(t["ip"], t["kind"])
+            tv.page = "%s&brand=%s" % (screen_url(t["id"]), urllib.parse.quote(t["kind"]))
             threading.Thread(target=tvbrands.watch, args=(tv,), daemon=True).start()
 
 
@@ -713,6 +860,8 @@ def places(h):
 def guest_apps(h, tv):
     """The apps on this TV a guest can use: installed, and in the host's "guest_apps" list when there
     is one (apps that are signed in). An app that is installed but signed out only shows a login wall."""
+    if h.get("managed"):   # exactly the shortcuts the host ticked for this apartment
+        return [a for a in tv.installed() if a["id"] in (h.get("guest_apps") or [])]
     allow = h.get("guest_apps") or settings().get("guest_apps")
     return [a for a in tv.installed() if not allow or a["id"] in allow]
 
@@ -852,7 +1001,7 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def send(self, code, body, ctype="application/json", cache="no-store", cors=False):
+    def send(self, code, body, ctype="application/json", cache="no-store", cors=False, headers=None):
         if isinstance(body, (dict, list)):
             body = json.dumps(body, ensure_ascii=False).encode()
         elif isinstance(body, str):
@@ -863,6 +1012,9 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if cors:   # the Samsung and LG app asks from its own origin whether the computer is up
             self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
@@ -871,9 +1023,35 @@ class H(BaseHTTPRequestHandler):
         return u.path, {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
 
     def home(self, qs):
-        return load_home(qs.get("home") or settings().get("default_home") or home_ids()[0])
+        """The home a request is about. ?screen=<tv id> (a managed apartment's TV) names the TV, and the
+        TV's apartment follows from it; self.tv is then that TV."""
+        self.tv = None
+        if qs.get("screen"):
+            self.tv = tvlink.get(qs["screen"])
+            return load_home(self.tv["home"]) if self.tv else None
+        hid = qs.get("home") or qs.get("tv_id")
+        if not hid:   # a TV that opens the plain address is known by the address staff typed for it in the dashboard
+            mine = [t for t in tvlink.listing() if t["ip"] and t["ip"] == self.client_address[0]]
+            if mine:
+                self.tv = mine[0]
+                return load_home(self.tv["home"])
+        elif hid not in home_ids() and tvlink.get(hid):   # ?home=<tv id> (a TV app that was given the TV's id)
+            self.tv = tvlink.get(hid)
+            return load_home(self.tv["home"])
+        if not hid:
+            managed = content.ids()
+            hid = (managed[0] if managed else None) or settings().get("default_home") or home_ids()[0]
+        h = load_home(hid)
+        if h and h.get("managed"):
+            self.tv = tvlink.pick(hid, qs.get("tv") or None)   # None when that TV is another apartment's
+            if qs.get("tv") and not self.tv:
+                return None
+        return h
 
     def is_host(self, qs):
+        import host
+        if host.authed(self):   # signed in to the host dashboard
+            return True
         key = qs.get("key", "")
         if not key:
             return False
@@ -884,7 +1062,7 @@ class H(BaseHTTPRequestHandler):
 
     def refused(self):
         """Checks every request goes through first: the Host header, and too many wrong codes."""
-        if not host_allowed(self.headers.get("Host")):
+        if not host_allowed(self.headers.get("Host")) and os.environ.get("GUEST_TV_PREVIEW") != "1":
             self.send(403, {"error": "unknown host name"})
             return True
         if wrong_limited(self.client_address[0]):
@@ -902,9 +1080,12 @@ class H(BaseHTTPRequestHandler):
             return self.end_headers()
         if path == "/api/health":
             return self.send(200, {"ok": True, "app": "guest-tv"}, cors=True)
+        if path.startswith("/api/host/"):
+            import host
+            return host.handle(self, "GET", path, qs, {}, sys.modules[__name__])
         if path == "/api/state":
             h = self.home(qs)
-            return self.send(200, public_state(h, self.is_host(qs), qs.get("phase")) if h else {"error": "no such home"}, cache="no-store")
+            return self.send(200, public_state(h, self.is_host(qs), qs.get("phase"), self.tv) if h else {"error": "no such home"}, cache="no-store")
         if path == "/api/profiles":   # the guest profile picker: what it saw and did lately
             import profiles
             return self.send(200, {"last_app": profiles.state["last"], "log": profiles.state["seen"]})
@@ -918,6 +1099,8 @@ class H(BaseHTTPRequestHandler):
             h = self.home(qs)
             if not self.remote_ok(h, qs):
                 return self.send(403, {"error": "This remote has ended. Scan the code on the TV again."})
+            if h.get("managed"):
+                return self.send(200, managed_remote(h, self.tv))
             ctx, s = remote_ctx(h), stay_of(h)
             return self.send(200, {
                 "ok": True, "home": h["id"], "mode": h.get("mode", "stay"), "place": h.get("name"),
@@ -932,10 +1115,14 @@ class H(BaseHTTPRequestHandler):
             h = self.home(qs)
             import tvctl
             try:
-                apps = guest_apps(h, tvctl.tv_for(tv_ip(h), tv_kind(h))) if h and tv_ip(h) else []
+                if h and h.get("managed"):
+                    apps = guest_apps(h, tvlink.driver(self.tv)) if self.tv else [a for a in tvctl.APPS if a["id"] in (h.get("guest_apps") or [])]
+                else:
+                    apps = guest_apps(h, tvctl.tv_for(tv_ip(h), tv_kind(h))) if h and tv_ip(h) else []
             except Exception:
                 apps = []
-            return self.send(200, {"apps": [{"id": a["id"], "name": a["name"]} for a in apps]})
+            return self.send(200, {"apps": [{"id": a["id"], "name": a["name"], "package": a["package"]} for a in apps],
+                                   "managed": bool(h and h.get("managed"))})
         if path == "/api/tv/status":   # host: what the TV is doing and what its watcher did
             h = self.home(qs)
             if not self.is_host(qs) or not h:
@@ -951,7 +1138,10 @@ class H(BaseHTTPRequestHandler):
         if path == "/api/tv/keys":   # Fire TV on Vega OS: the page asks for the Guest remote's keys (a long poll)
             h = self.home(qs)
             import tvctl
-            tv = tvctl.tv_for(tv_ip(h), tv_kind(h)) if h and tv_ip(h) else None
+            if h and h.get("managed"):   # a simulated TV's welcome screen collects the Guest remote's keys here
+                tv = tvlink.sim(self.tv["id"]) if self.tv and not tvlink.is_live(self.tv) else None
+            else:
+                tv = tvctl.tv_for(tv_ip(h), tv_kind(h)) if h and tv_ip(h) else None
             if not hasattr(tv, "page_keys"):
                 return self.send(404, {"error": "this TV takes its keys directly"})
             try:
@@ -973,13 +1163,15 @@ class H(BaseHTTPRequestHandler):
             h = self.home(qs)
             png = qs.get("fmt") == "png"   # Roku and Apple TV draw PNGs, the page SVGs
             code = (lambda t: self.send(200, qr_png(t), "image/png")) if png else (lambda t: self.send(200, qr_svg(t), "image/svg+xml"))
+            if not h:
+                return self.send(404, {"error": "no such home"})
             if qs.get("what") == "wifi":
                 st = public_state(h)
                 if not st["wifi"]:
                     return self.send(404, {"error": "no wifi now"})
                 return code(wifi_qr(st["wifi"]))
             if qs.get("what") == "remote":
-                st = public_state(h)
+                st = public_state(h, tv=self.tv)
                 if not st["remote_url"]:
                     return self.send(404, {"error": "no remote now"})
                 return code(st["remote_url"])
@@ -988,12 +1180,16 @@ class H(BaseHTTPRequestHandler):
             with open(os.path.join(HERE, "tv-apps", "titan", "index.html"), "rb") as fh:
                 return self.send(200, fh.read(), TYPES[".html"], "no-cache")
         # files
-        rel = {"/tv/": "/index.html", "/p/": "/phone.html", "/r/": "/remote.html"}.get(path, path)
-        for pre in ("/tv/", "/p/", "/r/"):
+        rel = {"/tv/": "/index.html", "/p/": "/phone.html", "/r/": "/remote.html", "/host/": "/host.html", "/host": "/host.html"}.get(path, path)
+        for pre in ("/tv/", "/p/", "/r/", "/host/"):
             if rel.startswith(pre):
                 rel = "/" + rel[len(pre):]
         f = os.path.normpath(os.path.join(WEB, rel.lstrip("/")))
-        if not f.startswith(WEB) or not os.path.isfile(f):
+        if rel.startswith("/homes/") and not os.path.isfile(f):   # a photograph the host uploaded (data/photos/)
+            f = content.photo_path(os.path.basename(rel)) or f
+            if not os.path.isfile(f):
+                return self.send(404, {"error": "not found"})
+        elif not f.startswith(WEB) or not os.path.isfile(f):
             return self.send(404, {"error": "not found"})
         ext = os.path.splitext(f)[1]
         with open(f, "rb") as fh:
@@ -1002,8 +1198,13 @@ class H(BaseHTTPRequestHandler):
         self.send(200, body, TYPES.get(ext, "application/octet-stream"), cache)
 
     def remote_ok(self, h, qs):
-        code = h and remote_code(h)
         given = qs.get("c", "")
+        if h and h.get("managed"):   # this booking's own link, this apartment, and only until check-out
+            ok = bool(access.verify(h["id"], given, h.get("checkin"), h.get("checkout"), now()))
+            if given and not ok:
+                note_wrong(self.client_address[0], given)
+            return ok
+        code = h and remote_code(h)
         ok = bool(code) and secrets.compare_digest(given.encode("utf-8", "replace"), code.encode())
         if given and not ok:
             note_wrong(self.client_address[0], given)
@@ -1013,6 +1214,8 @@ class H(BaseHTTPRequestHandler):
         import guest_agent, tvctl
         if not self.remote_ok(h, qs):
             return self.send(403, {"error": "This remote has ended. Scan the code on the TV again."})
+        if h.get("managed"):
+            return self.managed_post(path, h, qs, body)
         tv = tvctl.tv_for(tv_ip(h), tv_kind(h))
         try:
             if path == "/api/r/key" and body.get("key") in tvctl.KEYS:
@@ -1046,6 +1249,33 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": False, "error": "The TV didn't answer. Is it on?"})
         return self.send(400, {"error": "not allowed"})
 
+    def managed_post(self, path, h, qs, body):
+        """Guest remote actions in a managed apartment: the TV only (keys and the app shortcuts), and
+        the concierge. The TV is the one in the link, and self.home() already refused another apartment's."""
+        import concierge, tvctl
+        if path == "/api/r/ask":
+            return self.send(200, concierge.ask(body.get("text", ""), h, settings(), qs.get("c", "")))
+        if path not in ("/api/r/key", "/api/r/app"):
+            return self.send(400, {"error": "not allowed"})   # no aircon, lights or anything else here
+        tv = self.tv
+        if not tv:
+            return self.send(200, {"ok": False, "error": "No TV is set up for this apartment yet"})
+        d, real = tvlink.driver(tv), tvlink.is_live(tv)
+        try:
+            if path == "/api/r/key":
+                if body.get("key") not in tvctl.KEYS:
+                    return self.send(400, {"error": "not allowed"})
+                d.key(body["key"])
+            else:
+                if body.get("app") not in {a["id"] for a in guest_apps(h, d)}:
+                    return self.send(400, {"error": "not allowed"})
+                d.open_app(body["app"])
+            tvlink.sent(tv, True)
+            return self.send(200, {"ok": True, "simulated": not real})
+        except Exception:
+            tvlink.sent(tv, False)
+            return self.send(200, {"ok": False, "error": "The TV didn't answer. Is it on?"})
+
     def do_POST(self):
         if self.refused():
             return
@@ -1054,21 +1284,30 @@ class H(BaseHTTPRequestHandler):
         if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
             return self.send(415, {"error": "send JSON with Content-Type: application/json"})
         n = int(self.headers.get("Content-Length") or 0)
+        if n > (45_000_000 if path == "/api/host/photo" else 200_000):
+            return self.send(413, {"error": "too big"})
         try:
             body = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
             return self.send(400, {"error": "bad json"})
+        if not isinstance(body, dict):
+            return self.send(400, {"error": "bad json"})
+        if path.startswith("/api/host/"):
+            import host
+            return host.handle(self, "POST", path, qs, body, sys.modules[__name__])
         h = self.home(qs)
         if not h:
             return self.send(404, {"error": "no such home"})
         if path == "/api/tv/app":   # the TV page on a Samsung or LG opens an app through the computer
             import tvctl
-            tv = tvctl.tv_for(tv_ip(h), tv_kind(h))
+            if h.get("managed") and not self.tv:
+                return self.send(200, {"ok": False, "error": "No TV is set up for this apartment yet"})
+            tv = tvlink.driver(self.tv) if h.get("managed") else tvctl.tv_for(tv_ip(h), tv_kind(h))
             try:
                 if body.get("app") not in {a["id"] for a in guest_apps(h, tv)}:
                     return self.send(200, {"ok": False, "error": "That app is not on this TV"})
                 tv.open_app(body["app"])
-                return self.send(200, {"ok": True})
+                return self.send(200, {"ok": True, "simulated": bool(getattr(tv, "simulated", False))})
             except Exception:
                 return self.send(200, {"ok": False, "error": "The TV didn't answer"})
         if path.startswith("/api/r/"):   # Guest remote actions: only with this stay's code
@@ -1081,6 +1320,8 @@ class H(BaseHTTPRequestHandler):
             hp["remote_epoch"] = int(hp.get("remote_epoch", 0)) + 1
             jwrite(os.path.join(DATA, "private.json"), pv)
             return self.send(200, {"ok": True})
+        if h.get("managed") and path in ("/api/aircon", "/api/hub", "/api/stay", "/api/remote/reset"):
+            return self.send(400, {"error": "not allowed"})   # managed apartments: the TV only, and bookings in the dashboard
         if path == "/api/aircon":
             return self.send(200, aircon_set(h, body))
         if path == "/api/hub":   # the TV page: pool heater, speakers and lights, with the same limits as the remote
@@ -1117,12 +1358,33 @@ class H(BaseHTTPRequestHandler):
         self.send(404, {"error": "not found"})
 
 
+def start_managed():
+    """The managed apartments (host dashboard): the clock's time zone, a starter apartment on the
+    first run, and the loop that follows Airbnb calendars and booking emails."""
+    global TZ
+    tz = settings().get("timezone")
+    if tz:
+        from zoneinfo import ZoneInfo
+        TZ = stays.TZ = ZoneInfo(tz)
+    if demo_mode():
+        import demo
+        # Demo mode pins the time of day at 10:30, so every moment of a stay is on show whenever you look
+        # (an arrival day before check-in, a check-out day before check-out). The date is the real one.
+        stays.CLOCK = lambda: dt.datetime.now(TZ).replace(hour=10, minute=30, second=0, microsecond=0)
+        demo.seed()
+    elif settings().get("managed", True):
+        content.seed()
+    threading.Thread(target=managed_loop, daemon=True).start()
+
+
 if __name__ == "__main__":
     private()
+    start_managed()
     import profiles
     profiles.start(settings())   # picks the guest profile in streaming apps on the guest TV
     threading.Thread(target=booking_loop, daemon=True).start()   # guest names from booking emails
     start_tv_watchers()   # every TV that is not Android TV: open guest-tv when the TV comes on
     srv = ThreadingHTTPServer((os.environ.get("HOST", "0.0.0.0"), PORT), H)
     print("guest-tv on http://%s:%d/tv/  (phone: /p/; a TV app that asks wants the number: %s)" % (local_name(), PORT, lan_ip()), flush=True)
+    print("Host dashboard: http://%s:%d/host/%s" % (lan_ip(), PORT, "   DEMO MODE: pretend bookings, simulated TVs, password grace-demo" if demo_mode() else ""), flush=True)
     srv.serve_forever()

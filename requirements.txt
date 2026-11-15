@@ -6,3 +6,4 @@ websocket-client
 pillow
 cryptography
 # tools/brands_test.py also needs: websockets
+# optional, only for the AI concierge in the managed apartments (concierge.py): anthropic

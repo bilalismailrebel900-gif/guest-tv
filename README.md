@@ -8,6 +8,10 @@ Built with Claude.
 
 ![The TV and the Guest remote](docs/screens/hero.jpg)
 
+**Running several apartments (Grace Apartments, Lahore):** this copy adds a password-protected host
+dashboard, a booking per guest with its own remote link, one or more TVs per apartment, and demo
+mode. Start with [GRACE.md](GRACE.md): `sh scripts/grace.sh demo`.
+
 **Quickest setup:** one command on a computer that stays on, then the Guest TV app on the TV, typed
 in with the TV remote. No AI and no developer settings needed on a Google TV, Android TV or Fire TV:
 [The quick way](#the-quick-way). An AI agent can do it all for you instead: [Setting it up with an AI agent](#setting-it-up-with-an-ai-agent).
@@ -561,6 +565,8 @@ the TV: the couch-tv TV app (Google TV) or guest-tv's own app or the TV's browse
 | `profiles.py` | picks the Guest profile when a streaming app asks "Who's watching?" |
 | `bookings.py` | reads Airbnb booking emails for the guest's name and how many are coming |
 | `setup.py` | the setup questions (and `--check` for the must-haves) |
+| `stays.py`, `access.py`, `tvlink.py`, `content.py`, `host.py`, `concierge.py`, `store.py` | managed apartments ([GRACE.md](GRACE.md)): bookings and the Airbnb sync, guest links, TV connections (simulated or real), apartment content, the host dashboard, the optional concierge, and the SQLite storage |
+| `manage.py`, `demo.py`, `scripts/grace.sh` | dashboard password, backup and restore, demo mode, start and stop |
 | `guide_writer.py` | writes `guide.json` with Claude from your notes and the area |
 | `data/homes/<id>/` | each home: `home.json` (name, photos, rooms, dates) and `guide.json` (welcome, rules, how-to, local picks, check-out) |
 | `data/settings.json` | port, weather place, aircon, TV, apps, agent level |

@@ -158,6 +158,26 @@ What we saw per app (TCL Android TV 11, Oct 2026):
 On-screen keyboards in apps (Stan) also take a tap as "move focus": tap a key, then `key DPAD_CENTER`.
 Before pressing anything near a "Delete" button, read the screen again and check where the focus is.
 
+## Managed apartments (stays.py, access.py, tvlink.py, content.py, host.py, concierge.py)
+
+Read GRACE.md. Homes with `"managed": true` are run from the host dashboard (`/host/`), not `setup.py`.
+
+- Bookings live in `data/guesttv.db`. Never edit it by hand while guest-tv runs; use the dashboard or `stays.py`.
+- A guest link is checked in `access.verify`: its booking, its apartment, its TV, and only until
+  check-out. Never add a way round it, and never put a token, calendar link or key in a log or a TV page.
+- Managed apartments control the TV only. Do not wire aircon, lights or other devices into them.
+- A TV stays simulated until the owner, at the TV with it muted, runs Check connection and switches
+  real commands on. Never set `live` or `check_ok` in the database yourself, and never run a check
+  for them. Demo mode (`GUEST_TV_DEMO=1`) must never reach a real TV.
+- The concierge has no tools. Links come from the guide in code (`concierge.links_for`), never from
+  the model's text. The API key is typed by the owner into `data/private.json`; never read it back.
+- The dashboard password is set by the owner (`manage.py set-password`). Never set or print one for
+  them outside demo mode.
+- After any change to these files or to `server.py`, run `tools/grace_test.py` and
+  `tools/security_test.py`. Every check must pass.
+- Sample images are drawn by `tools/sample_images.py` and carry a "SAMPLE IMAGE" label. Never put
+  a photo of a real place in as a sample.
+
 ## Keep the website in step
 
 guest-tv has a website for hosts. Its setup steps, its "Will it work on my TV?" check, its limits and

@@ -157,7 +157,10 @@ input[type=date] { color-scheme: dark; }
     if (S.emergency.length) h += '<section class="card"><div class="k">Emergency</div>' + S.emergency.map(function (e) {
       return '<div class="kv"><span style="max-width:70%">' + esc(e.name) + "</span>" + (e.phone ? '<b><a style="color:#fff;text-decoration:none" href="tel:' + esc(String(e.phone).replace(/[^0-9+]/g, "")) + '">' + esc(e.phone) + "</a></b>" : "") + "</div>";
     }).join("") + "</section>";
-    if (KEY) h += hostCard();
+    var rc = S.reception || {};
+    if (S.managed && (rc.phone || rc.whatsapp)) h += '<section class="card"><div class="k">Reception</div><div class="kv"><span>' + esc(rc.name || "Reception") + (rc.hours ? " · " + esc(rc.hours) : "") +
+      '</span><b><a style="color:#fff;text-decoration:none" href="tel:' + esc(String(rc.phone || rc.whatsapp).replace(/[^0-9+]/g, "")) + '">' + esc(rc.phone || rc.whatsapp) + "</a></b></div></section>";
+    if (KEY && !S.managed) h += hostCard();
     h += '<p class="foot">' + esc(S.name) + " · this page works on the home Wi-Fi</p>";
     $("main").innerHTML = h;
 
@@ -166,14 +169,16 @@ input[type=date] { color-scheme: dark; }
       (navigator.clipboard ? navigator.clipboard.writeText(S.wifi.password) : Promise.reject()).then(function () { toast("Password copied"); }, function () { toast("Hold the password to copy it"); });
     };
     drawClimate(); drawWeather(); drawPlaces();
-    if (KEY) bindHost();
+    if (KEY && !S.managed) bindHost();
   }
   function det(x) { return "<details><summary>" + esc(x.title) + "</summary><p>" + esc(x.body) + "</p></details>"; }
 
   function drawClimate() {
     var el = $("climate");
     if (!el) return;
+    if (S.managed) { el.style.display = "none"; return; }
     if (!AC) { el.innerHTML = '<div class="k">' + IC.climate + 'Climate</div><p class="muted" style="margin-top:8px">Checking the air conditioning…</p>'; return; }
+    if (S.managed || (AC.connected && !AC.zones.length)) { el.style.display = "none"; return; }
     if (!AC.connected || !AC.zones.length) { el.innerHTML = '<div class="k">' + IC.climate + 'Climate</div><p class="muted" style="margin-top:8px">The air conditioning is not answering right now.</p>'; return; }
     var heat = AC.mode === "heat";
     el.innerHTML = '<div class="k">' + IC.climate + (S.mode === "guest" ? "Your room" : "Climate") + "</div>" + AC.zones.map(function (z, i) {

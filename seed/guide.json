@@ -1,0 +1,70 @@
+{
+  "welcome": "Welcome to Grace Apartments. We hope you feel at home here in Lahore. Everything you need for your stay is on this screen, and reception is glad to help with anything else.",
+  "rules": [
+    {"title": "Quiet hours", "body": "Please keep noise low from 10pm to 8am so every guest in the building can rest."},
+    {"title": "No smoking indoors", "body": "Smoking is not allowed inside the apartment. Please ask reception where you may smoke."},
+    {"title": "Visitors", "body": "Visitors are welcome during the day. Please let reception know, and note that only registered guests may stay overnight."},
+    {"title": "Looking after the apartment", "body": "Please tell reception straight away if something is broken or not working, so we can fix it for you."}
+  ],
+  "howto": [
+    {"title": "Wi-Fi", "body": "Choose Wi-Fi on the TV home screen and point your phone's camera at the code to join. The network name and password are shown next to it."},
+    {"title": "TV and streaming apps", "body": "Use the TV remote, or scan the Guest remote code on the TV to use your phone. Netflix, YouTube and Prime Video open from the row at the bottom of the screen. Please sign in with your own account and sign out before you leave."},
+    {"title": "Air conditioning and heating", "body": "Use the wall unit's own remote. Please switch it off when you go out."},
+    {"title": "Hot water", "body": "Sample text: say here how the geyser or water heater works in this apartment."},
+    {"title": "Power cuts", "body": "Sample text: say here what stays on during load-shedding and how long the backup lasts."},
+    {"title": "Rubbish and housekeeping", "body": "Sample text: say here when housekeeping visits and where rubbish goes."}
+  ],
+  "checkout": {
+    "steps": [
+      "Please check out by the time shown on this screen",
+      "Sign out of Netflix, YouTube and any other app you signed in to",
+      "Switch off the air conditioning, heaters and lights",
+      "Close the windows and lock the door",
+      "Hand the keys or key card back to reception"
+    ]
+  },
+  "emergency": [
+    {"name": "Rescue 1122 (ambulance, fire, rescue)", "phone": "1122"},
+    {"name": "Police", "phone": "15"},
+    {"name": "Edhi ambulance", "phone": "115"}
+  ],
+  "local": [
+    {
+      "category": "Eat",
+      "items": [
+        {"name": "Fort Road Food Street", "note": "Rooftop restaurants looking over Badshahi Mosque. Best at sunset and after dark.", "distance": ""},
+        {"name": "Gawalmandi Food Street", "note": "The old city's classic street food: nihari, karahi, fried fish and lassi.", "distance": ""},
+        {"name": "MM Alam Road, Gulberg", "note": "Lahore's main restaurant strip, with cafes and Pakistani, Chinese and continental dining.", "distance": ""},
+        {"name": "Lakshmi Chowk", "note": "Famous for late-night karahi and tawa chicken.", "distance": ""}
+      ]
+    },
+    {
+      "category": "See and do",
+      "items": [
+        {"name": "Badshahi Mosque", "note": "The great Mughal mosque of 1673, one of the largest in the world.", "distance": ""},
+        {"name": "Lahore Fort (Shahi Qila)", "note": "UNESCO World Heritage site beside Badshahi Mosque. See the Sheesh Mahal.", "distance": ""},
+        {"name": "Wazir Khan Mosque", "note": "Seventeenth century mosque in the Walled City, known for its tile work.", "distance": ""},
+        {"name": "Shalimar Gardens", "note": "Mughal terraced gardens and fountains, a UNESCO World Heritage site.", "distance": ""},
+        {"name": "Lahore Museum", "note": "On The Mall. Home of the Fasting Buddha and a fine Gandhara collection.", "distance": ""},
+        {"name": "Wagah border ceremony", "note": "The flag-lowering ceremony at the border every afternoon. Leave early, it fills up.", "distance": ""}
+      ]
+    },
+    {
+      "category": "Shop",
+      "items": [
+        {"name": "Anarkali Bazaar", "note": "One of South Asia's oldest markets: fabric, bangles, shoes and street food.", "distance": ""},
+        {"name": "Liberty Market, Gulberg", "note": "Clothes, jewellery and snacks, busy in the evening.", "distance": ""},
+        {"name": "Packages Mall", "note": "Large modern mall on Walton Road with a cinema and food court.", "distance": ""},
+        {"name": "Emporium Mall", "note": "Large mall in Johar Town with a cinema and food court.", "distance": ""}
+      ]
+    },
+    {
+      "category": "Useful",
+      "items": [
+        {"name": "Pharmacy", "note": "Sample entry: add the nearest pharmacy and its hours.", "distance": ""},
+        {"name": "Hospital", "note": "Sample entry: add the nearest hospital with an emergency department.", "distance": ""},
+        {"name": "Supermarket", "note": "Sample entry: add the nearest grocery shop.", "distance": ""}
+      ]
+    }
+  ]
+}
