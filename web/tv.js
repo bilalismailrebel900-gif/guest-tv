@@ -24,6 +24,8 @@
     if (kv) { var p = kv.split("="); QS[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ""); }
   });
   var HOME = QS.home || QS.tv || "";   // the couch-tv TV app adds ?tv=<id>
+  var SCREEN = QS.screen || "";         // a managed apartment's TV: /tv/?screen=<tv id> (the apartment follows from it)
+  var WHO = function () { return SCREEN ? "screen=" + encodeURIComponent(SCREEN) : "home=" + encodeURIComponent(HOME); };
   var S = null, WX = null, AC = null, HUB = null, CARDS = [], APPS = [], PILLS = [];
   var area = "cards", idx = 0, appIdx = 0;
   var sheet = null;   // {id, nav: [...], navIdx, zoneIdx, inMain}
@@ -32,7 +34,7 @@
   var BRAND_APPS = null;
 
   function api(path, body) {
-    var url = "/api/" + path + (path.indexOf("?") >= 0 ? "&" : "?") + "home=" + encodeURIComponent(HOME) +
+    var url = "/api/" + path + (path.indexOf("?") >= 0 ? "&" : "?") + WHO() +
       (QS.phase ? "&phase=" + encodeURIComponent(QS.phase) : "");
     var o = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
     return fetch(url, o).then(function (r) { return r.json(); });
@@ -56,6 +58,7 @@
     pool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2.5 16c1.6 0 1.6-1.2 3.2-1.2s1.6 1.2 3.2 1.2 1.6-1.2 3.1-1.2 1.6 1.2 3.2 1.2 1.6-1.2 3.2-1.2 1.6 1.2 3.1 1.2"/><path d="M2.5 20c1.6 0 1.6-1.2 3.2-1.2s1.6 1.2 3.2 1.2 1.6-1.2 3.1-1.2 1.6 1.2 3.2 1.2 1.6-1.2 3.2-1.2 1.6 1.2 3.1 1.2"/><path d="M8 13V5.5a2 2 0 0 1 4 0M16 13V5.5a2 2 0 0 0-4 0M8 8.5h8"/></svg>',
     music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>',
     light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
+    reception: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',
     notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>'
   };
   function wx(code, day) {
@@ -85,8 +88,16 @@
     var p = String(hhmm).split(":"), h = +p[0], m = p[1] || "00";
     return (h % 12 || 12) + (m === "00" ? "" : ":" + m) + (h < 12 ? "am" : "pm");
   }
-  function isoToday() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
-  function greeting() { var h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; }
+  // The property's own clock (Asia/Karachi for Lahore), whatever time zone the TV or browser is set to.
+  // Demo mode pins the time of day so every moment of a stay can be looked at.
+  function nowTz() {
+    var d = new Date();
+    if (S && typeof S.tz_offset_min === "number") d = new Date(d.getTime() + (d.getTimezoneOffset() + S.tz_offset_min) * 60000);
+    if (S && S.clock_fixed) { var p = S.clock_fixed.split(":"); d.setHours(+p[0], +p[1], 0, 0); }
+    return d;
+  }
+  function isoToday() { var d = nowTz(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function greeting() { var h = nowTz().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; }
 
   // ---------------------------------------------------------------- scene and clock
   var glassShown = "";
@@ -110,7 +121,7 @@
     clock();
   }
   function clock() {
-    var d = new Date(), hm = (d.getHours() % 12 || 12) + ":" + ("0" + d.getMinutes()).slice(-2);
+    var d = nowTz(), hm = (d.getHours() % 12 || 12) + ":" + ("0" + d.getMinutes()).slice(-2);
     document.documentElement.classList.toggle("late", d.getHours() >= 21 || d.getHours() < 5);
     if (hm !== glassShown && S) {
       glassShown = hm;
@@ -123,7 +134,7 @@
     }
   }
   function dateLine() {
-    var d = new Date(), out = DAYS[d.getDay()] + " " + d.getDate() + " " + MONTHS[d.getMonth()];
+    var d = nowTz(), out = DAYS[d.getDay()] + " " + d.getDate() + " " + MONTHS[d.getMonth()];
     if (WX && WX.ok) out += '<span class="wx">' + wx(WX.now.code, WX.now.day) + WX.now.temp + "° " + esc(WX.place) + "</span>";
     $("date").innerHTML = out;
   }
@@ -137,12 +148,13 @@
       h1 = guest ? greeting() + ", " + guest : "Welcome";
       sub = st.to ? "Here until " + DAYS[d8(st.to).getDay()] + ". Make yourself at home." : "Make yourself at home.";
     } else if (st.phase === "between" || st.phase === "before") {
-      eyebrow = S.kind;
-      h1 = "Welcome to " + S.name;
+      eyebrow = S.managed ? S.name : S.kind;
+      h1 = "Welcome to " + (S.managed && S.property ? S.property : S.name);
       sub = "Your stay details show here when you arrive.";
     } else if (st.phase === "arrival") {
       h1 = "Welcome" + (guest ? ", " + guest : "");
-      sub = "Check-in from " + t12(S.checkin) + " today. Settle in, everything is here.";
+      sub = S.managed ? dayShort(st.from) + " to " + dayShort(st.to) + " · Check-in from " + t12(S.checkin) + " today"
+        : "Check-in from " + t12(S.checkin) + " today. Settle in, everything is here.";
     } else if (st.phase === "lastday") {
       h1 = greeting() + (guest ? ", " + guest : "");
       sub = "Check-out today at " + t12(S.checkout_time) + ". Thanks for staying.";
@@ -150,7 +162,16 @@
       h1 = (st.night === 1 ? "Welcome" : greeting()) + (guest ? ", " + guest : "");
       sub = dayShort(st.from) + " to " + dayShort(st.to) + " · Night " + st.night + " of " + st.nights;
     }
+    if (S.managed && st.active) eyebrow = (S.property ? S.property + " · " : "") + S.name;
     $("eyebrow").textContent = eyebrow || "";
+    var tag = $("simtag");
+    if (tag) {
+      var bits = [];
+      if (S.demo_mode) bits.push("Demo mode");
+      if (st.preview) bits.push("Preview of a stay, not a real booking");
+      if (S.screen && S.screen.simulated && (S.demo_mode || QS.preview)) bits.push("Simulated TV");
+      tag.textContent = bits.join(" · "); tag.style.display = bits.length ? "" : "none";
+    }
     $("welcome").textContent = h1;
     $("sub").textContent = sub;
     document.body.classList.toggle("between", S.mode !== "guest" && !st.active);
@@ -162,9 +183,9 @@
   }
   var svgCache = {};
   function loadSvg(el, what) {
-    var key = HOME + what;
+    var key = HOME + what + (what === "remote" ? S.remote_url : what === "wifi" && S.wifi ? S.wifi.ssid + S.wifi.password : "");
     if (svgCache[key]) { el.innerHTML = svgCache[key]; return; }
-    fetch("/api/qr?home=" + encodeURIComponent(HOME) + (what === "wifi" || what === "remote" ? "&what=" + what : "")).then(function (r) {
+    fetch("/api/qr?" + WHO() + (what === "wifi" || what === "remote" ? "&what=" + what : "")).then(function (r) {
       return r.ok ? r.text() : "";
     }).then(function (t) { svgCache[key] = t; el.innerHTML = t; });
   }
@@ -200,11 +221,13 @@
       var days = forecastDays(st.from, st.to, 5);
       var line = st.phase === "lastday" ? "Last day · Check-out " + t12(S.checkout_time) : st.phase === "arrival" ? "Arriving today · Check-in " + t12(S.checkin)
         : "Night " + st.night + " of " + st.nights + " · out " + DAYS[d8(st.to).getDay()].slice(0, 3) + " " + t12(S.checkout_time);
-      return '<div class="k">' + I.stay + "Your stay</div>" + '<div class="mid one">' + esc(line) + "</div>" + fcHtml(days.length ? days : forecastDays(null, null, 4));
+      var fc = days.length ? days : forecastDays(null, null, 4);
+      return '<div class="k">' + I.stay + "Your stay</div>" + '<div class="mid one">' + esc(line) + "</div>" + (fc.length ? fcHtml(fc)
+        : '<div class="small">' + esc(dayShort(st.from) + ", " + t12(S.checkin) + " to " + dayShort(st.to) + ", " + t12(S.checkout_time)) + "</div>");
     } };
     var wifiCard = { id: "wifi", w: 1.7, html: function () {
       return '<div class="k">' + I.wifi + "Wi-Fi</div>" + (S.wifi && S.wifi.ssid ?
-        '<div><div class="small">' + esc(S.wifi.ssid) + '</div><div class="pw">' + esc(S.wifi.password) + '</div><div class="small">OK for a code to join</div></div>'
+        '<div><div class="small">' + esc(S.wifi.ssid) + '</div><div class="pw"' + (String(S.wifi.password).length > 14 ? ' style="font-size:1.75rem"' : "") + ">" + esc(S.wifi.password) + '</div><div class="small">OK for a code to join</div></div>'
         : '<div class="small">Ask ' + esc(S.host || "your host") + " for the Wi-Fi</div>");
     } };
     var climateCard = { id: "climate", w: S.mode === "guest" ? 1.8 : 1.4, html: function () {
@@ -231,7 +254,8 @@
         '</div><div class="small">' + ((S.checkout.steps || []).length) + " quick things</div></div>";
     } };
     var weatherCard = { id: "weather", w: 1.8, html: function () {
-      return '<div class="k">' + I.weather + "Weather</div>" + fcHtml(forecastDays(null, null, 4));
+      var fc = forecastDays(null, null, 4);
+      return '<div class="k">' + I.weather + "Weather</div>" + (fc.length ? fcHtml(fc) : '<div class="small">The forecast is not available right now</div>');
     } };
     var eat = S.local.filter(function (c) { return /^eat/i.test(c.category); })[0] || S.local[0];
     var todo = S.local.filter(function (c) { return /things to do|do\b/i.test(c.category); })[0] || S.local[1];
@@ -243,6 +267,12 @@
       return '<div class="k">' + I.local + "Around here</div><div>" + line("Eat", eat) + line("Do", todo) +
         '<div class="small">' + places + " local picks</div></div>";
     } };
+    var rc = S.reception || {}, rcNum = rc.phone || rc.whatsapp || "";
+    var receptionCard = { id: "reception", w: 1.3, html: function () {
+      return '<div class="k">' + I.reception + "Reception</div><div>" + (rcNum ? '<div class="mid one">' + esc(rcNum) + "</div>" : '<div class="mid one">Here to help</div>') +
+        '<div class="small">' + esc(rc.hours || rc.name || "Call or message us any time") + "</div></div>";
+    } };
+    var noClimate = S.managed || (AC && AC.connected && !(AC.zones || []).length);
     var welcomeCard = { id: "about", w: 2, html: function () {
       return '<div class="k">' + I.stay + esc(S.name) + '</div><div class="small" style="font-size:1.625rem;line-height:2.25rem;color:#fff">' + esc(S.welcome) + "</div>";
     } };
@@ -254,6 +284,17 @@
       climateCard.w = 1.45; wifiCard.w = 1.5; weatherCard.w = 1.55;
     } else if (!st.active) {
       out = places ? [welcomeCard, weatherCard, localCard] : [welcomeCard, weatherCard];
+      if (S.managed) pills.push({ id: "reception", name: "Reception", icon: I.reception, note: rcNum });
+    } else if (noClimate && st.phase === "lastday") {
+      checkoutCard.lead = true; checkoutCard.w = 1.3; stayCard.w = 2; wifiCard.w = 1.5; receptionCard.w = 1.3;
+      out = S.managed ? [checkoutCard, stayCard, wifiCard, receptionCard] : [checkoutCard, stayCard, wifiCard];
+      if (places) pills.push(localPill);
+    } else if (noClimate) {
+      stayCard.w = 2; wifiCard.w = 1.45; receptionCard.w = 1.25;
+      out = [stayCard, wifiCard];
+      if (S.managed) out.push(receptionCard);
+      if (places) out.push(localCard);
+      pills.push({ id: "checkout", name: "Check-out", icon: I.checkout, note: DAYS[d8(st.to).getDay()].slice(0, 3) + " " + t12(S.checkout_time) });
     } else if (st.phase === "lastday") {
       checkoutCard.lead = true; checkoutCard.w = 1.3;
       if (hasHub) { climateCard = hubCard; }
@@ -298,12 +339,13 @@
     "au.com.streamotion.ares", "com.cbs.ca", "au.com.seven", "au.com.nine.jumpin", "au.com.tenplay"];
   function drawApps() {
     var list = [];
-    if (BRAND) {
+    var mine = S && S.managed && BRAND_APPS ? BRAND_APPS.map(function (a) { return a.package; }) : null;   // the shortcuts the host ticked
+    if (BRAND || (S && S.managed && !(TVOS && TVOS.apps))) {
       list = (BRAND_APPS || []).map(function (a) { return { name: a.name, app: a.id }; });
     } else if (TVOS && TVOS.apps) {
       try {
         var all = JSON.parse(TVOS.apps());
-        list = all.filter(function (a) { return PREFER.indexOf(a.package) >= 0; })
+        list = all.filter(function (a) { return PREFER.indexOf(a.package) >= 0 && (!mine || mine.indexOf(a.package) >= 0); })
           .sort(function (a, b) { return PREFER.indexOf(a.package) - PREFER.indexOf(b.package); })
           .slice(0, 6).map(function (a) { return { name: a.label, pkg: a.package, banner: "http://tvos.invalid/banner/" + a.package }; });
       } catch (e) { list = []; }
@@ -346,9 +388,9 @@
     if (!a) return;
     if (a.sheet) { openSheet(a.sheet); return; }
     if (TVOS && TVOS.launch && a.pkg) { TVOS.launch(a.pkg); return; }
-    if (BRAND && a.app) {
+    if ((BRAND || (S && S.managed)) && a.app) {
       toast("Opening " + a.name);
-      api("tv/app", { app: a.app }).then(function (r) { if (!r.ok) toast(r.error || a.name + " did not open"); },
+      api("tv/app", { app: a.app }).then(function (r) { if (!r.ok) toast(r.error || a.name + " did not open"); else if (r.simulated) toast(a.name + " opens here on a connected TV (simulated)"); },
         function () { toast(a.name + " did not open"); });
       return;
     }
@@ -384,6 +426,7 @@
       if (S.emergency.length) l.push({ t: "Emergency", emergency: true });
       return l;
     }
+    if (id === "reception") return [];
     if (id === "stay" || id === "about") {
       var s = [{ t: "Welcome", k: "welcome" }];
       if (st.active && (S.access || []).length) s.push({ t: "Getting in", k: "access" });
@@ -394,7 +437,7 @@
     }
     return [];
   }
-  var TITLES = { hub: "Smart home", stay: "Your stay", about: "Welcome", wifi: "Wi-Fi", climate: "Climate", guide: "House guide", local: "Around here", checkout: "Check-out", weather: "Weather" };
+  var TITLES = { reception: "Reception", hub: "Smart home", stay: "Your stay", about: "Welcome", wifi: "Wi-Fi", climate: "Climate", guide: "House guide", local: "Around here", checkout: "Check-out", weather: "Weather" };
   function openSheet(id) {
     if (id === "weather") id = S.mode === "guest" ? "weather" : "stay";
     var nav = navList(id);
@@ -426,7 +469,7 @@
     var navEl = $("sheet-nav"), fo = navEl.querySelector(".item.focus") || navEl.querySelector(".item.sel");
     navEl.scrollTop = fo ? Math.max(0, fo.offsetTop - navEl.offsetTop - navEl.clientHeight / 2 + fo.offsetHeight / 2) : 0;
     $("sheet-main").innerHTML = sheetMain();
-    $("sheet-main").classList.toggle("mid", sh.id === "climate" || sh.id === "wifi" || sh.id === "checkout");
+    $("sheet-main").classList.toggle("mid", sh.id === "climate" || sh.id === "wifi" || sh.id === "checkout" || sh.id === "reception");
     var q = $("sheet-main").querySelectorAll("[data-qr]");
     for (var k = 0; k < q.length; k++) loadSvg(q[k], q[k].getAttribute("data-qr"));
     if (sh.id === "hub") { $("sheet-hint").innerHTML = hubHint(); return; }
@@ -453,14 +496,23 @@
       return '<div class="panel glass wifi-big"><div class="qr" data-qr="wifi"></div><div><div class="name">Network</div><div class="val">' + esc(S.wifi.ssid) +
         '</div><div class="name">Password</div><div class="val">' + esc(S.wifi.password) + "</div></div></div>" +
         '<div class="panel glass" style="display:flex;gap:2rem;align-items:center"><div class="qr" data-qr="qr" style="width:9rem;height:9rem;border-radius:1rem;overflow:hidden;background:#fff;flex:none"></div>' +
-        '<div><h3>On your phone too</h3><p>Once you are on the Wi-Fi, this code opens the house guide, climate and local tips on your phone. Nothing to install.</p></div></div>';
+        '<div><h3>On your phone too</h3><p>' + (S.managed ? "Once you are on the Wi-Fi, scan the Guest remote code on the home screen to use your phone as the TV remote and to read the apartment guide. Nothing to install."
+          : "Once you are on the Wi-Fi, this code opens the house guide, climate and local tips on your phone. Nothing to install.") + '</p></div></div>';
     }
     if (sh.id === "climate") return zonesHtml();
+    if (sh.id === "reception") {
+      var r = S.reception || {};
+      var kv = function (k, v) { return v ? '<div class="kv"><span>' + esc(k) + "</span><b>" + esc(v) + "</b></div>" : ""; };
+      var rows = kv("Phone", r.phone) + kv("WhatsApp", r.whatsapp && r.whatsapp !== r.phone ? r.whatsapp : "") + kv("Hours", r.hours);
+      return '<div class="panel glass"><h3>' + esc(r.name || "Reception") + "</h3>" + (rows || '<p class="lede" style="margin-top:1rem">Please ask at the front desk.</p>') + "</div>" +
+        '<div class="panel glass"><p class="lede">' + esc(r.note || "We are glad to help with anything during your stay.") + "</p></div>" +
+        (S.emergency.length ? '<div class="panel glass places">' + S.emergency.map(function (e) { return '<div class="pl"><b>' + esc(e.phone || "") + "</b><p>" + esc(e.name) + "</p></div>"; }).join("") + "</div>" : "");
+    }
     if (sh.id === "hub") return hubMain();
     if (sh.id === "checkout") {
       var steps = (S.checkout.steps || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("");
       return '<div class="panel glass"><p class="meta">' + (st.phase === "lastday" ? "Today" : st.to ? DAYS[d8(st.to).getDay()] : "") + '</p><h3>Check-out by ' + t12(S.checkout_time) + "</h3><ol>" + steps + "</ol></div>" +
-        '<div class="panel glass"><p class="lede">Safe travels' + (st.guest ? ", " + esc(st.guest) : "") + ". We hope you come back." + (S.host ? " " + esc(S.host) : "") + "</p></div>";
+        '<div class="panel glass"><p class="lede">Safe travels' + (st.guest ? ", " + esc(st.guest) : "") + ". We hope you come back." + (S.host && !S.managed ? " " + esc(S.host) : "") + "</p></div>";
     }
     if (sh.id === "weather") {
       return '<div class="panel glass"><h3>' + esc(WX && WX.place || "") + '</h3><p class="meta">The next few days</p>' + fcHtml(forecastDays(null, null, 7), true) + "</div>";
@@ -479,7 +531,7 @@
       }).join("") + "</div>";
     }
     if (sh.id === "stay" || sh.id === "about") {
-      if (n.k === "welcome") return photo("inside", "") + '<div class="panel glass"><p class="lede">' + esc(S.welcome) + "</p>" + (S.host ? '<p class="meta">' + esc(S.host) + ", your host</p>" : "") + "</div>";
+      if (n.k === "welcome") return photo("inside", "") + '<div class="panel glass"><p class="lede">' + esc(S.welcome) + "</p>" + (S.managed ? '<p class="meta">' + esc(S.property || "") + "</p>" : S.host ? '<p class="meta">' + esc(S.host) + ", your host</p>" : "") + "</div>";
       if (n.k === "access") return '<div class="panel glass">' + S.access.map(function (a) { return '<div class="kv"><span>' + esc(a.label) + "</span><b>" + esc(a.code) + "</b></div>"; }).join("") +
         '</div><div class="panel glass"><p>Codes are shown only during your stay.</p></div>';
       if (n.k === "times") return '<div class="panel glass"><div class="kv"><span>Check-in</span><b>' + dayShort(st.from) + ", " + t12(S.checkin) + '</b></div><div class="kv"><span>Check-out</span><b>' +
@@ -488,7 +540,8 @@
       if (n.k === "weather") return '<div class="panel glass"><h3>Your stay in ' + esc(WX && WX.place || "") + "</h3>" + fcHtml(forecastDays(st.from || null, st.to || null, 7).length ? forecastDays(st.from || null, st.to || null, 7) : forecastDays(null, null, 5), true) + "</div>";
       if (n.k === "help") return '<div class="panel glass places">' + S.emergency.map(function (e) {
         return '<div class="pl"><b>' + esc(e.phone || "") + "</b><p>" + esc(e.name) + "</p></div>";
-      }).join("") + "</div>" + (S.host ? '<div class="panel glass"><p>For anything about the house, message ' + esc(S.host) + " through the app you booked with.</p></div>" : "");
+      }).join("") + "</div>" + (S.managed ? '<div class="panel glass"><p>For anything about the apartment, contact reception' + ((S.reception || {}).phone ? " on " + esc(S.reception.phone) : "") + ".</p></div>"
+        : S.host ? '<div class="panel glass"><p>For anything about the house, message ' + esc(S.host) + " through the app you booked with.</p></div>" : "");
     }
     return "";
   }
@@ -661,6 +714,23 @@
     }, function () { setTimeout(function () { poll(after); }, 3000); });
   })(0);
 
+  // A managed apartment's simulated TV: the Guest remote's presses come to this page from the computer,
+  // so the preview moves the way the real TV would. A connected TV gets its keys directly instead.
+  var simOn = false;
+  function simPoll(after) {
+    if (!(S && S.screen && S.screen.simulated)) { simOn = false; return; }
+    fetch("/api/tv/keys?" + WHO() + "&after=" + after).then(function (r) { return r.json(); }).then(function (r) {
+      (r.keys || []).forEach(function (item) {
+        var k = String(item).split(":"), v = k.slice(1).join(":");
+        if (k[0] === "app") { toast(v + " opens here on a connected TV (simulated)"); return; }
+        if (v === "left" || v === "right" || v === "up" || v === "down" || v === "ok" || v === "back") onKey(v);
+        else if (v === "home") { awake(); if (sheet) closeSheet(); area = "cards"; idx = 0; paintFocus(); }
+        else toast({ volume_up: "Volume up", volume_down: "Volume down", mute: "Mute", play_pause: "Play / pause" }[v] + " (simulated)");
+      });
+      setTimeout(function () { simPoll(typeof r.n === "number" ? r.n : after); }, 50);
+    }, function () { setTimeout(function () { simPoll(after); }, 3000); });
+  }
+
   // a mouse or a touch screen works too (handy for the preview)
   document.addEventListener("mousemove", function () { document.body.classList.add("mouse"); });
   document.addEventListener("click", function (e) {
@@ -680,12 +750,14 @@
 
   // ---------------------------------------------------------------- data
   function refreshState() {
-    if (BRAND) api("tv/apps").then(function (r) { BRAND_APPS = r.apps || []; if (S && !sheet) drawApps(); }, function () {});
+    if (BRAND || SCREEN || (S && S.managed)) api("tv/apps").then(function (r) { BRAND_APPS = r.apps || []; if (S && !sheet) drawApps(); }, function () {});
     return api("state").then(function (s) {
       if (s.error) { $("welcome").textContent = s.error; return; }
-      var first = !S || S.id !== s.id;
+      var first = !S || S.id !== s.id || (S.photos || {}).hero !== (s.photos || {}).hero;
       S = s; HOME = s.id;
+      if (s.screen && s.screen.id && !QS.home) SCREEN = s.screen.id;   // the computer knew this TV by its address
       if (first) buildScene();
+      if (S.screen && S.screen.simulated && !simOn && !QS.keys) { simOn = true; simPoll(0); }
       header();
       if (!sheet) drawCards();
       drawApps();
@@ -760,7 +832,8 @@
   document.addEventListener("mousemove", awake);
   refreshWeather();
   setInterval(clock, 1000);
-  setInterval(refreshState, 60000);
+  setInterval(function () { if (!(S && S.managed)) refreshState(); }, 60000);
+  setInterval(function () { if (S && S.managed) refreshState(); }, 15000);   // a booking the host changes shows within seconds
   setInterval(refreshWeather, 30 * 60000);
   setInterval(function () { refreshAircon(); refreshHub(); }, 20000);
   if (document.fonts) document.fonts.load("300 10px Antonio").then(function () { glassShown = ""; clock(); });

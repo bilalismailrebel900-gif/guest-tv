@@ -2,10 +2,10 @@
   "port": 5410,
   "default_home": "lake",
   "weather": {
-    "place": "Byron Bay",
-    "lat": -28.6474,
-    "lon": 153.602,
-    "tz": "Australia/Sydney"
+    "place": "Lahore",
+    "lat": 31.5204,
+    "lon": 74.3587,
+    "tz": "Asia/Karachi"
   },
   "aircon": {},
   "profiles": {
@@ -22,5 +22,21 @@
   "agent": {
     "level": "locked"
   },
-  "film": false
+  "film": false,
+  "property": "Grace Apartments",
+  "timezone": "Asia/Karachi",
+  "managed": true,
+  "reception": {
+    "name": "Reception",
+    "phone": "",
+    "whatsapp": "",
+    "hours": "",
+    "note": ""
+  },
+  "concierge": {
+    "enabled": false,
+    "model": "claude-opus-5-5"
+  },
+  "sync_every_min": 15,
+  "forget_guest_names_after_days": 30
 }

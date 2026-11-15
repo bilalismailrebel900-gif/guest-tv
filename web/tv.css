@@ -310,3 +310,8 @@ body.sheeted .top, body.sheeted .home, body.sheeted .date, body.sheeted .gclock 
   .sheet { background: rgba(9, 9, 12, 0.95); }
   .sheet .glass { background: rgba(255, 255, 255, 0.07); }
 }
+
+/* ---------- managed apartments: the demo / preview / simulated tag, and a stronger focus ring ---------- */
+.simtag { position: fixed; right: var(--safe-x); bottom: 1.1rem; z-index: 40; padding: 0.3rem 0.9rem; border-radius: 999px; font-size: 1.125rem; font-weight: 600;
+  letter-spacing: 0.04em; color: #111; background: #ffd89a; }
+.app.focus, .sheet-nav .item.focus { outline: 0.1875rem solid #fff; outline-offset: 0.1875rem; }

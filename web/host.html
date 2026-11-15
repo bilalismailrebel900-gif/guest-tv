@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Host dashboard</title>
+<style>
+@font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url(fonts/inter-latin-wght-normal.woff2) format("woff2"); }
+:root {
+  --bg: #f4f2ee; --card: #ffffff; --ink: #1c1b19; --ink-2: #5d5a55; --ink-3: #8b8780; --line: #e3dfd8; --accent: #1f5f4a; --accent-ink: #fff;
+  --warn-bg: #fff3d6; --warn-ink: #6b4a00; --bad-bg: #fde4df; --bad-ink: #8a2414; --good-bg: #dff3e6; --good-ink: #17573a; --field: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151614; --card: #1f201e; --ink: #f1efea; --ink-2: #b6b2aa; --ink-3: #8b8780; --line: #34352f; --accent: #7fd1b0; --accent-ink: #10231b;
+    --warn-bg: #3d3210; --warn-ink: #ffdf8e; --bad-bg: #44201a; --bad-ink: #ffb4a6; --good-bg: #173527; --good-ink: #9fe0bb; --field: #171816; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+header.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+header.bar h1 { font-size: 17px; letter-spacing: -0.01em; margin-right: auto; }
+header.bar h1 small { display: block; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+nav { display: flex; gap: 6px; flex-wrap: wrap; }
+main { max-width: 1120px; margin: 0 auto; padding: 16px; }
+h2 { font-size: 20px; letter-spacing: -0.015em; margin: 6px 0 12px; }
+h3 { font-size: 15px; margin-bottom: 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.row > label { flex: 1 1 160px; }
+label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+input, select, textarea { display: block; width: 100%; margin-top: 4px; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; }
+textarea { min-height: 70px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; font-weight: 600; font-size: 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 13px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.danger { color: var(--bad-ink); }
+button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+button.small { padding: 5px 9px; font-size: 13px; }
+button:disabled { opacity: 0.5; cursor: default; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--line); color: var(--ink-2); white-space: nowrap; }
+.pill.good { background: var(--good-bg); color: var(--good-ink); } .pill.warn { background: var(--warn-bg); color: var(--warn-ink); } .pill.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.muted { color: var(--ink-2); font-size: 13.5px; } .tiny { font-size: 12.5px; color: var(--ink-3); }
+.banner { padding: 10px 14px; border-radius: 12px; margin-bottom: 14px; background: var(--warn-bg); color: var(--warn-ink); font-size: 14px; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; color: var(--ink-3); font-weight: 650; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td .acts { display: flex; flex-wrap: wrap; gap: 5px; }
+tr.off td { color: var(--ink-3); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.photo { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--line); }
+.item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+.item .row { align-items: flex-start; }
+.linkbox { font: 12.5px ui-monospace, monospace; word-break: break-all; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-top: 6px; }
+.login { max-width: 380px; margin: 12vh auto; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--card); padding: 10px 18px; border-radius: 999px; font-weight: 600; opacity: 0; transition: opacity 200ms; pointer-events: none; z-index: 20; max-width: 92vw; }
+.toast.on { opacity: 1; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+.checks label { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 14px; color: var(--ink); }
+.checks input { width: auto; margin: 0; }
+dialog { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--card); color: var(--ink); max-width: min(480px, 92vw); margin: auto; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.qr { width: 180px; height: 180px; background: #fff; border-radius: 10px; padding: 6px; margin: 10px auto; }
+.qr svg { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+<div class="toast" id="toast"></div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $("app"), O = null, A = null, view = "overview", tab = "bookings", SES = null;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function toast(m) { var t = $("toast"); t.textContent = m; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove("on"); }, 2600); }
+  function api(path, body) {
+    return fetch("/api/host/" + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {})
+      .then(function (r) { return r.json().then(function (j) { j._status = r.status; if (r.status === 401) { SES.authed = false; drawLogin(); throw new Error("signed out"); } return j; }); });
+  }
+  function act(path, body, okMsg) {
+    return api(path, body).then(function (r) { if (r.error) { toast(r.error); throw new Error(r.error); } if (okMsg) toast(okMsg); return r; });
+  }
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function dshort(iso) { if (!iso) return ""; var p = iso.slice(0, 10).split("-"), d = new Date(+p[0], +p[1] - 1, +p[2]); return DAY[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+  function when(iso) { if (!iso) return "never"; var d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+  var PHASE = { arrival: ["Arrival day", "good"], during: ["Guest staying", "good"], lastday: ["Check-out day", "warn"], between: ["Between bookings", ""], before: ["Arrives tomorrow", ""] };
+  var STATE = { upcoming: ["Upcoming", ""], arriving: ["Arriving today", "good"], staying: ["Staying", "good"], leaving: ["Leaving today", "warn"], past: ["Checked out", ""], cancelled: ["Cancelled", "bad"] };
+  function pill(x) { return '<span class="pill ' + (x[1] || "") + '">' + esc(x[0]) + "</span>"; }
+  function tvPill(t) { var m = t.status.mode; return pill([m === "connected" ? "Connected" : m === "offline" ? "Not answering" : "Simulated", m === "connected" ? "good" : m === "offline" ? "bad" : "warn"]); }
+
+  // ---------------------------------------------------------------- sign-in
+  function drawLogin() {
+    var s = SES, setup = !s.has_password;
+    app.innerHTML = '<div class="login card"><h2>' + esc(s.property) + '</h2><p class="muted">Host dashboard' + (s.demo ? " · demo mode" : "") + "</p>" +
+      (setup && !s.can_setup ? '<p class="banner" style="margin-top:12px">No password has been set yet. On the host computer, run <b>.venv/bin/python manage.py set-password</b>, or open this page in a browser on that computer.</p>'
+        : '<form id="lf" style="margin-top:14px"><label>' + (setup ? "Choose a password (8 characters or more)" : "Password") +
+          '<input id="pw" type="password" autocomplete="' + (setup ? "new-password" : "current-password") + '" required></label>' +
+          (s.demo ? '<p class="tiny" style="margin-top:6px">Demo mode password: <b>' + esc(s.demo_password) + "</b></p>" : "") +
+          '<button class="primary" style="margin-top:14px;width:100%">' + (setup ? "Set password and sign in" : "Sign in") + "</button></form>") + "</div>";
+    var f = $("lf");
+    if (f) { $("pw").focus(); f.onsubmit = function (e) {
+      e.preventDefault();
+      api(setup ? "setup" : "login", { password: $("pw").value }).then(function (r) { if (r.error) return toast(r.error); start(); });
+    }; }
+  }
+
+  // ---------------------------------------------------------------- frame
+  function frame(inner) {
+    app.innerHTML = '<header class="bar"><h1>' + esc(O.property) + " <small>Host dashboard · " + esc(O.timezone) + " · " + esc(String(O.now).replace("T", " ").slice(0, 16)) + '</small></h1><nav>' +
+      '<button data-go="overview" class="' + (view === "overview" ? "on" : "") + '">Overview</button>' +
+      '<button data-go="settings" class="' + (view === "settings" ? "on" : "") + '">Settings</button><button data-go="logout">Sign out</button></nav></header><main>' +
+      (O.demo ? '<p class="banner"><b>Demo mode.</b> Pretend guests and simulated TVs, in a separate demo-data folder. The time of day is pinned at 10:30 so every moment of a stay is on show. Nothing here reaches a real TV.</p>' : "") +
+      inner + "</main>";
+  }
+  function load() { return api("overview").then(function (o) { O = o; }); }
+  function go(v, id) {
+    view = v;
+    if (v === "apartment") return api("apartment?id=" + encodeURIComponent(id)).then(function (a) { if (a.error) { toast(a.error); return go("overview"); } A = a; drawApartment(); });
+    return load().then(v === "settings" ? drawSettings : drawOverview);
+  }
+
+  // ---------------------------------------------------------------- overview
+  function drawOverview() {
+    var h = '<div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Apartments</h2><button class="primary" data-do="add-apartment">Add apartment</button></div><div class="grid">';
+    O.apartments.forEach(function (a) {
+      var p = PHASE[a.phase] || [a.phase, ""];
+      h += '<div class="card"><div class="row" style="align-items:center"><h3 style="margin:0;flex:1">' + esc(a.name) + "</h3>" + pill(p) + "</div>" +
+        '<p style="margin-top:8px">' + (a.from ? "<b>" + esc(a.guest || "Guest (no name yet)") + "</b> · " + dshort(a.from) + " to " + dshort(a.to) : '<span class="muted">Nobody staying. Nothing private is on the TV.</span>') + "</p>" +
+        '<p class="muted">' + (a.next ? "Next: " + esc(a.next.guest || "guest") + " on " + dshort(a.next.arrive) : "No upcoming booking") + "</p>" +
+        '<p class="muted" style="margin-top:6px">' + (a.tvs.length ? a.tvs.map(function (t) { return esc(t.name) + " " + tvPill(t); }).join("<br>") : "No TV yet") + "</p>" +
+        (a.has_ical ? '<p class="tiny" style="margin-top:6px">Airbnb calendar: ' + (a.sync ? (a.sync.ok ? "in step, " : "<b>problem</b>, ") + esc(when(a.sync.at)) : "not read yet") + "</p>" : "") +
+        (a.sample_photo ? '<p class="tiny">Showing a sample image, not your photograph</p>' : "") +
+        '<div class="row" style="margin-top:12px"><button class="primary" data-open="' + esc(a.id) + '">Manage</button>' +
+        (a.tvs[0] ? '<a href="' + esc(a.tvs[0].preview_path) + '&preview=1" target="_blank" rel="noopener"><button>TV preview</button></a>' : "") + "</div></div>";
+    });
+    h += "</div>";
+    if (!O.apartments.length) h += '<p class="card muted">No apartments yet. Add the first one.</p>';
+    h += '<div class="card"><h3>Recent activity</h3>' + (O.log.length ? '<div class="tablewrap"><table>' + O.log.slice(0, 12).map(function (l) {
+      return '<tr><td class="tiny" style="white-space:nowrap">' + esc(when(l.at)) + "</td><td>" + esc(l.what) + "</td></tr>"; }).join("") + "</table></div>" : '<p class="muted">Nothing yet.</p>') + "</div>";
+    frame(h);
+  }
+
+  // ---------------------------------------------------------------- one apartment
+  var TABS = [["bookings", "Bookings"], ["details", "Details and Wi-Fi"], ["photos", "Photographs"], ["guide", "Guide"], ["places", "Nearby places"], ["tvs", "TVs"]];
+  function drawApartment() {
+    var n = A.now || {}, p = PHASE[n.phase] || [n.phase, ""];
+    var h = '<p><a href="#" data-go="overview">← All apartments</a></p><div class="row" style="align-items:center;margin:8px 0 12px"><h2 style="margin:0;flex:1">' + esc(A.name) + "</h2>" + pill(p) + "</div>" +
+      '<div class="tabs">' + TABS.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    h += { bookings: tabBookings, details: tabDetails, photos: tabPhotos, guide: tabGuide, places: tabPlaces, tvs: tabTvs }[tab]();
+    frame(h);
+    if (tab === "guide") bindGuide();
+    if (tab === "places") bindPlaces();
+  }
+  function reloadA(msg) { if (msg) toast(msg); return go("apartment", A.id); }
+
+  function tabBookings() {
+    var h = '<div class="card"><h3>Add a booking</h3><form id="bf" class="row"><label>Guest first name<input id="b-guest" maxlength="40" placeholder="Ayesha"></label>' +
+      '<label>Arrival<input id="b-arrive" type="date" required></label><label>Departure<input id="b-depart" type="date" required></label>' +
+      '<label style="flex:0 1 90px">Guests<input id="b-guests" type="number" min="0" max="50"></label><label>Note for staff<input id="b-note" maxlength="300"></label>' +
+      '<button class="primary">Add booking</button></form><p class="tiny" style="margin-top:8px">Check-in ' + esc(A.checkin) + ", check-out " + esc(A.checkout) + " (Lahore time). The TV greets the guest from arrival day and clears their name at check-out.</p></div>";
+    h += '<div class="card"><h3>Bookings</h3>';
+    if (A.ical_url) h += '<p class="muted" style="margin-bottom:8px">Airbnb calendar: ' + (A.sync ? pill(A.sync.ok ? ["In step", "good"] : ["Problem", "bad"]) + " " + esc(A.sync.message) + " · read " + esc(when(A.sync.at)) + " · " + A.sync.seen + " in the calendar" : "not read yet") +
+      ' <button class="small" data-do="sync">Read now</button></p>';
+    var rows = A.bookings.slice().sort(function (a, b) { return (a.state === "past" || a.state === "cancelled") - (b.state === "past" || b.state === "cancelled") || a.arrive.localeCompare(b.arrive); });
+    if (!rows.length) h += '<p class="muted">No bookings yet.</p>';
+    else h += '<div class="tablewrap"><table><tr><th>Guest</th><th>Stay</th><th>Status</th><th>Guest remote link</th><th></th></tr>' + rows.map(function (b) {
+      var off = b.state === "past" || b.state === "cancelled", id = esc(b.id);
+      return '<tr class="' + (off ? "off" : "") + '"><td><b>' + esc(b.guest || "(no name yet)") + "</b>" + (b.guests ? " · " + b.guests : "") +
+        '<div class="tiny">' + (b.source === "airbnb" ? "Airbnb" + (b.code ? " " + esc(b.code) : "") + (b.name_from === "email" ? " · name from email" : "") : "Typed by staff") + (b.note ? " · " + esc(b.note) : "") + "</div></td>" +
+        "<td>" + dshort(b.arrive) + " → " + dshort(b.depart) + '<div class="tiny">' + esc(b.arrive) + " to " + esc(b.depart) + "</div></td>" +
+        "<td>" + pill(STATE[b.state] || [b.state, ""]) + (b.why ? '<div class="tiny">' + esc(b.why) + "</div>" : "") + "</td>" +
+        '<td><span class="tiny">' + esc(b.link_state) + '</span><div class="acts" style="margin-top:4px">' +
+        (b.link ? '<button class="small" data-link="' + id + '">Show</button><button class="small danger" data-b="revoke" data-id="' + id + '">Revoke</button>' : "") +
+        (b.status === "confirmed" && b.state !== "past" ? '<button class="small" data-b="reissue" data-id="' + id + '">New link</button>' : "") + "</div></td>" +
+        '<td><div class="acts">' + (b.status === "confirmed" ? '<button class="small" data-edit="' + id + '">Edit</button>' + (off ? "" : '<button class="small danger" data-b="cancel" data-id="' + id + '">Cancel</button>')
+          : '<button class="small" data-b="restore" data-id="' + id + '">Restore</button>') + (off ? '<button class="small danger" data-b="delete" data-id="' + id + '">Delete</button>' : "") + "</div></td></tr>";
+    }).join("") + "</table></div>";
+    return h + "</div>";
+  }
+
+  function tabDetails() {
+    var r = A.reception || {}, w = A.wifi || {};
+    return '<form id="df"><div class="card"><h3>Apartment</h3><div class="row"><label>Name on the TV<input id="d-name" maxlength="60" value="' + esc(A.name) + '"></label>' +
+      '<label>Line under it<input id="d-label" maxlength="60" value="' + esc(A.label) + '"></label><label style="flex:0 1 120px">Check-in from<input id="d-in" type="time" value="' + esc(A.checkin) + '"></label>' +
+      '<label style="flex:0 1 120px">Check-out by<input id="d-out" type="time" value="' + esc(A.checkout) + '"></label></div></div>' +
+      '<div class="card"><h3>Guest Wi-Fi</h3><div class="row"><label>Network name<input id="d-ssid" maxlength="32" value="' + esc(w.ssid) + '"></label>' +
+      '<label>Password<input id="d-wpw" maxlength="63" value="' + esc(w.password) + '" autocomplete="off"></label></div><p class="tiny" style="margin-top:8px">Shown on the TV with a scan-to-connect code only while a guest is staying. Kept on this computer.</p></div>' +
+      '<div class="card"><h3>Reception contact</h3><div class="row"><label>Name<input id="d-rn" maxlength="60" value="' + esc(r.name) + '"></label><label>Phone<input id="d-rp" maxlength="30" value="' + esc(r.phone) + '" placeholder="+92 ..."></label>' +
+      '<label>WhatsApp<input id="d-rw" maxlength="30" value="' + esc(r.whatsapp) + '"></label><label>Hours<input id="d-rh" maxlength="80" value="' + esc(r.hours) + '" placeholder="Open 24 hours"></label></div>' +
+      '<label style="margin-top:10px">Note for guests<input id="d-rnote" maxlength="200" value="' + esc(r.note) + '"></label><p class="tiny" style="margin-top:8px">Blank fields use the property\'s reception contact from Settings.</p></div>' +
+      '<div class="card"><h3>Streaming shortcuts</h3><p class="muted">Tick the apps installed on this apartment\'s TV. Guests sign in with their own accounts; subscriptions are separate.</p><div class="checks">' +
+      O.apps.map(function (a) { return '<label><input type="checkbox" name="app" value="' + esc(a.id) + '"' + (A.guest_apps.indexOf(a.id) >= 0 ? " checked" : "") + ">" + esc(a.name) + "</label>"; }).join("") + "</div></div>" +
+      '<div class="card"><h3>Airbnb calendar (optional)</h3><label>Calendar link (Airbnb: Calendar, Availability, Connect calendars, Export)<input id="d-ical" maxlength="500" value="' + esc(A.ical_url) + '" placeholder="https://www.airbnb.com/calendar/ical/..." autocomplete="off"></label>' +
+      '<p class="tiny" style="margin-top:8px">Brings in reservation dates every 15 minutes and marks a reservation cancelled when Airbnb removes it. Airbnb leaves the guest\'s name out: type it on the booking, or use the email import (Settings). The link stays on this computer.</p></div>' +
+      '<div class="row"><button class="primary">Save details</button><button type="button" class="danger" data-do="del-apartment">Remove this apartment</button></div></form>';
+  }
+
+  function tabPhotos() {
+    var names = { hero: ["Main photograph", "The whole TV screen. Landscape, at least 1920 wide; 3840 wide for a 4K TV."], inside: ["Inside", "Shown beside the house guide."], area: ["The area", "Shown on Nearby places."] };
+    return '<div class="grid">' + ["hero", "inside", "area"].map(function (k) {
+      return '<div class="card"><h3>' + names[k][0] + " " + (A.sample_photos[k] ? pill(["Sample image", "warn"]) : pill(["Your photograph", "good"])) + '</h3><img class="photo" alt="" src="/tv/homes/' + esc(A.photos[k]) + '.jpg">' +
+        '<p class="tiny" style="margin:8px 0">' + names[k][1] + '</p><div class="row"><label style="flex:1">Upload a JPG or PNG<input type="file" accept="image/jpeg,image/png" data-photo="' + k + '"></label>' +
+        (A.sample_photos[k] ? "" : '<button class="small" data-sample="' + k + '">Use sample</button>') + "</div></div>";
+    }).join("") + "</div>";
+  }
+
+  // generic list editor: rows of fields, add and remove
+  function listEditor(el, items, fields, addLabel) {
+    function row(it) {
+      return '<div class="item"><div class="row">' + fields.map(function (f) {
+        return '<label style="flex:' + (f.w || "1 1 160px") + '">' + f.label + (f.area ? '<textarea data-f="' + f.k + '" maxlength="' + (f.max || 1200) + '">' + esc(it[f.k]) + "</textarea>"
+          : '<input data-f="' + f.k + '" maxlength="' + (f.max || 200) + '" value="' + esc(it[f.k]) + '"' + (f.ph ? ' placeholder="' + f.ph + '"' : "") + ">") + "</label>";
+      }).join("") + '<button type="button" class="small danger" data-rm="1" style="align-self:flex-end">Remove</button></div></div>';
+    }
+    el.innerHTML = '<div class="rows">' + items.map(row).join("") + '</div><button type="button" class="small" data-add="1">' + addLabel + "</button>";
+    el.onclick = function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.rm) { e.stopPropagation(); b.closest(".item").remove(); }
+      if (b.dataset.add) { e.stopPropagation(); el.querySelector(".rows").insertAdjacentHTML("beforeend", row({})); }
+    };
+    el.read = function () {
+      return [].map.call(el.querySelectorAll(".item"), function (it) { var o = {}; it.querySelectorAll("[data-f]").forEach(function (i) { o[i.dataset.f] = i.value; }); return o; });
+    };
+  }
+  var TB = [{ k: "title", label: "Title", w: "1 1 200px", max: 80 }, { k: "body", label: "Text", area: 1, w: "3 1 320px" }];
+  function tabGuide() {
+    var g = A.guide || {};
+    return '<form id="gf"><div class="card"><h3>Welcome message</h3><textarea id="g-welcome" maxlength="600">' + esc(g.welcome) + '</textarea></div>' +
+      '<div class="card"><h3>House rules</h3><div id="g-rules"></div></div><div class="card"><h3>How things work</h3><div id="g-howto"></div></div>' +
+      '<div class="card"><h3>Check-out instructions</h3><label>One step per line<textarea id="g-steps" style="min-height:130px">' + esc(((g.checkout || {}).steps || []).join("\n")) + "</textarea></label></div>" +
+      '<div class="card"><h3>Emergency numbers</h3><div id="g-emg"></div></div><button class="primary">Save guide</button></form>';
+  }
+  function bindGuide() {
+    var g = A.guide || {};
+    listEditor($("g-rules"), g.rules || [], TB, "Add a rule");
+    listEditor($("g-howto"), g.howto || [], TB, "Add an entry");
+    listEditor($("g-emg"), g.emergency || [], [{ k: "name", label: "Service", max: 80 }, { k: "phone", label: "Number", w: "0 1 160px", max: 30 }], "Add a number");
+  }
+  var PF = [{ k: "name", label: "Name", max: 80 }, { k: "note", label: "Why go", w: "2 1 240px", max: 300 }, { k: "distance", label: "How far", w: "0 1 120px", max: 40, ph: "10 min drive" },
+    { k: "book", label: "Its own booking page (optional)", max: 500, ph: "https://" }, { k: "phone", label: "Phone (optional)", w: "0 1 150px", max: 30 }];
+  function tabPlaces() {
+    var cats = (A.guide || {}).local || [];
+    return '<form id="pf"><p class="muted" style="margin-bottom:10px">Only places listed here are shown to guests and used by the concierge. A booking link must be the place\'s own booking page.</p><div id="p-cats">' + cats.map(function (c, i) {
+      return '<div class="card" data-cat="1"><div class="row"><label>Category<input data-cname="1" maxlength="40" value="' + esc(c.category) + '"></label><button type="button" class="small danger" data-rmcat="1">Remove category</button></div><div data-items="' + i + '" style="margin-top:10px"></div></div>';
+    }).join("") + '</div><div class="row"><button type="button" data-do="add-cat">Add a category</button><button class="primary">Save places</button></div></form>';
+  }
+  function bindPlaces() {
+    var cats = (A.guide || {}).local || [];
+    document.querySelectorAll("[data-items]").forEach(function (el) { listEditor(el, (cats[+el.dataset.items] || {}).items || [], PF, "Add a place"); });
+  }
+
+  function tabTvs() {
+    var h = '<div class="card"><h3>How a TV becomes connected</h3><ol class="muted" style="padding-left:20px"><li>Every TV starts <b>simulated</b>: the guest remote works and moves the preview screen, and nothing is sent to hardware.</li>' +
+      "<li>Standing at the TV with it muted, type its kind and address here, then press <b>Check connection</b> (it only reads; an Android TV asks you to press Allow once).</li>" +
+      "<li>When the check passes, switch <b>Send real commands</b> on. Until then the remote tells guests the TV is simulated.</li></ol></div>";
+    A.tvs.forEach(function (t) {
+      var id = esc(t.id);
+      h += '<div class="card"><div class="row" style="align-items:center"><h3 style="margin:0;flex:1">' + esc(t.name) + "</h3>" + tvPill(t) + '</div><p class="muted" style="margin:6px 0 10px">' + esc(t.status.label) + (t.status.why ? " · " + esc(t.status.why) : "") + "</p>" +
+        '<form class="row" data-tvform="' + id + '"><label>Name<input data-f="name" maxlength="50" value="' + esc(t.name) + '"></label><label>Kind<select data-f="kind">' +
+        Object.keys(O.kinds).map(function (k) { return '<option value="' + k + '"' + (k === t.kind ? " selected" : "") + ">" + esc(O.kinds[k]) + "</option>"; }).join("") + "</select></label>" +
+        '<label>Address on the Wi-Fi<input data-f="ip" maxlength="45" value="' + esc(t.ip) + '" placeholder="192.168.1.50"></label><label>Apartment<select data-f="home">' +
+        O.apartments.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === A.id ? " selected" : "") + ">" + esc(a.name) + "</option>"; }).join("") + "</select></label><button>Save</button></form>" +
+        '<div class="row" style="margin-top:12px"><button data-tv="check" data-id="' + id + '"' + (t.ip && !O.demo ? "" : " disabled") + ">Check connection</button>" +
+        '<button data-tv="live" data-on="' + (t.live ? 0 : 1) + '" data-id="' + id + '"' + (t.check_ok || t.live ? "" : " disabled") + ">" + (t.live ? "Stop real commands" : "Send real commands") + "</button>" +
+        '<a href="' + esc(t.preview_path) + '&preview=1" target="_blank" rel="noopener"><button type="button">Open preview</button></a><button class="danger" data-tv="delete" data-id="' + id + '">Remove TV</button></div>' +
+        (t.checked ? '<p class="tiny" style="margin-top:8px">Last check ' + esc(when(t.checked)) + ": " + esc(t.check_msg) + "</p>" : "") +
+        '<p class="tiny" style="margin-top:8px">Address for this TV\'s welcome screen (type it into the Guest TV app, or any TV browser):</p><div class="linkbox">' + esc(t.screen_url) + "</div></div>";
+    });
+    return h + '<div class="card"><h3>Add a TV to this apartment</h3><form id="tf" class="row"><label>Name<input id="t-name" maxlength="50" placeholder="Bedroom TV" required></label><button class="primary">Add TV</button></form></div>';
+  }
+
+  // ---------------------------------------------------------------- settings
+  function drawSettings() {
+    var r = O.reception || {}, c = O.concierge, e = O.emails || {};
+    frame('<h2>Settings</h2><form id="sf" class="card"><h3>Property</h3><div class="row"><label>Property name<input id="s-name" maxlength="60" value="' + esc(O.property) + '"></label></div>' +
+      '<h3 style="margin-top:14px">Reception contact (used by every apartment unless it has its own)</h3><div class="row"><label>Name<input id="s-rn" maxlength="60" value="' + esc(r.name) + '"></label><label>Phone<input id="s-rp" maxlength="30" value="' + esc(r.phone) + '"></label>' +
+      '<label>WhatsApp<input id="s-rw" maxlength="30" value="' + esc(r.whatsapp) + '"></label><label>Hours<input id="s-rh" maxlength="80" value="' + esc(r.hours) + '"></label></div>' +
+      '<label style="margin-top:10px">Note for guests<input id="s-rnote" maxlength="200" value="' + esc(r.note) + '"></label><button class="primary" style="margin-top:12px">Save</button></form>' +
+      '<div class="card"><h3>AI concierge (optional) ' + pill(c.ai ? ["On", "good"] : ["Off", ""]) + '</h3><p class="muted">' + esc(c.why) + ". It answers only from each apartment's guide and nearby places, and can control nothing.</p>" +
+      '<p class="tiny" style="margin:8px 0">The API key is never typed here: it lives on this computer (ANTHROPIC_API_KEY, or anthropic_api_key in data/private.json). Key on this computer: <b>' + (c.has_key ? "yes" : "no") + "</b>. Model: " + esc(c.model) + ".</p>" +
+      '<button data-do="concierge" data-on="' + (c.enabled ? 0 : 1) + '">' + (c.enabled ? "Switch the AI concierge off" : "Switch the AI concierge on") + "</button></div>" +
+      '<div class="card"><h3>Booking email import (optional)</h3><p class="muted">Gives Airbnb bookings their guest\'s first name from the confirmation email, and cancels on a cancellation email. Save emails as .eml files into data/bookings-inbox/, or set up a read-only mailbox (README). A name staff type always wins.</p>' +
+      '<p class="tiny" style="margin:8px 0">Last read: ' + esc(when(e.checked)) + " · emails found: " + (e.found || 0) + (e.result && e.result.named != null ? " · names set: " + e.result.named + " · cancelled: " + e.result.cancelled + " · not matched: " + e.result.unmatched : "") +
+      ((e.errors || []).length ? ' · <b>' + esc(e.errors.join("; ")) + "</b>" : "") + '</p><button data-do="emails">Read emails now</button></div>' +
+      '<div class="card"><h3>Backup</h3><p class="muted">One zip with every apartment, booking, photograph and private value. Keep it somewhere private: it holds Wi-Fi passwords.</p><a href="/api/host/backup"><button style="margin-top:8px">Download a backup</button></a></div>' +
+      '<form id="pwf" class="card"><h3>Dashboard password</h3><div class="row"><label>Current password<input id="pw-old" type="password" autocomplete="current-password" required></label><label>New password<input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label><button>Change password</button></div></form>' +
+      '<div class="card"><h3>This computer</h3><p class="muted">Phones and TVs on the Wi-Fi reach guest-tv at <b>' + esc(O.address) + "</b></p></div>");
+  }
+
+  // ---------------------------------------------------------------- dialogs
+  function dialog(html) { var d = $("dlg"); d.innerHTML = html; d.showModal(); return d; }
+  function showLink(b) {
+    dialog("<h3>Guest remote link · " + esc(b.guest || "guest") + '</h3><p class="muted">' + esc(b.link_state) + ". It works on the apartment Wi-Fi, for this apartment only, and stops at check-out. The TV shows the same code.</p>" +
+      '<div class="qr" id="lqr"></div><div class="linkbox">' + esc(b.link) + '</div><div class="row" style="margin-top:12px"><button class="primary" id="lcopy">Copy link</button><button id="lclose">Close</button></div>');
+    fetch("/api/host/qr?booking=" + encodeURIComponent(b.id)).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { $("lqr").innerHTML = t; });
+    $("lclose").onclick = function () { $("dlg").close(); };
+    $("lcopy").onclick = function () { (navigator.clipboard ? navigator.clipboard.writeText(b.link) : Promise.reject()).then(function () { toast("Link copied"); }, function () { toast("Select the link and copy it"); }); };
+  }
+  function editBooking(b) {
+    dialog('<h3>Edit booking</h3><form id="ef"><label>Guest first name<input id="e-guest" maxlength="40" value="' + esc(b.guest) + '"></label><div class="row" style="margin-top:10px"><label>Arrival<input id="e-arrive" type="date" value="' + esc(b.arrive) + '"></label>' +
+      '<label>Departure<input id="e-depart" type="date" value="' + esc(b.depart) + '"></label></div><div class="row" style="margin-top:10px"><label style="flex:0 1 90px">Guests<input id="e-guests" type="number" min="0" max="50" value="' + (b.guests || "") + '"></label>' +
+      '<label>Note<input id="e-note" maxlength="300" value="' + esc(b.note) + '"></label></div>' + (b.source === "airbnb" ? '<p class="tiny" style="margin-top:8px">Dates follow the Airbnb calendar and will be set back on the next read if you change them here.</p>' : "") +
+      '<div class="row" style="margin-top:14px"><button class="primary">Save</button><button type="button" id="e-close">Close</button></div></form>');
+    $("e-close").onclick = function () { $("dlg").close(); };
+    $("ef").onsubmit = function (e) {
+      e.preventDefault();
+      act("booking/update", { id: b.id, guest: $("e-guest").value, arrive: $("e-arrive").value, depart: $("e-depart").value, guests: $("e-guests").value, note: $("e-note").value }).then(function () { $("dlg").close(); reloadA("Saved. The TV follows within seconds."); }, function () {});
+    };
+  }
+
+  // ---------------------------------------------------------------- events
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-go],[data-open],[data-tab],[data-do],[data-b],[data-link],[data-edit],[data-tv],[data-sample],[data-rmcat]");
+    if (!t) return;
+    var d = t.dataset;
+    if (d.go) { e.preventDefault(); if (d.go === "logout") return api("logout", {}).then(function () { SES.authed = false; drawLogin(); }, function () {}); return go(d.go); }
+    if (d.open) { tab = "bookings"; return go("apartment", d.open); }
+    if (d.tab) { tab = d.tab; return reloadA(); }
+    if (d.link) return showLink(A.bookings.filter(function (b) { return b.id === d.link; })[0]);
+    if (d.edit) return editBooking(A.bookings.filter(function (b) { return b.id === d.edit; })[0]);
+    if (d.b) {
+      var ask = { cancel: "Cancel this booking? The guest's link stops and their name leaves the TV.", delete: "Delete this booking for good?", revoke: "Revoke this guest's remote link now? Their phone remote stops working at once." }[d.b];
+      if (ask && !confirm(ask)) return;
+      return act("booking/" + d.b, { id: d.id }).then(function () { reloadA({ cancel: "Booking cancelled", restore: "Booking restored", delete: "Deleted", revoke: "Link revoked", reissue: "New link issued. The old one no longer works." }[d.b]); }, function () {});
+    }
+    if (d.tv) {
+      if (d.tv === "delete" && !confirm("Remove this TV?")) return;
+      if (d.tv === "check") toast("Checking. If the TV asks, press Allow on it.");
+      return act("tv/" + d.tv, { tv: d.id, on: d.on === "1" }).then(function () { reloadA(d.tv === "check" ? "Check finished" : "Saved"); }, function () {});
+    }
+    if (d.sample) return act("photo/sample", { id: A.id, which: d.sample }).then(function () { reloadA("Back to the sample image"); }, function () {});
+    if (d.rmcat) return t.closest("[data-cat]").remove();
+    if (d.do === "add-apartment") { var n = prompt("Name of the new apartment (as it should show on the TV)"); if (n) act("apartment/create", { name: n }).then(function (r) { tab = "details"; go("apartment", r.id); }, function () {}); }
+    if (d.do === "del-apartment") { if (confirm("Remove " + A.name + "? Its bookings and TVs go too. Its guide is kept in data/archive.")) act("apartment/delete", { id: A.id }).then(function () { go("overview"); }, function () {}); }
+    if (d.do === "sync") act("sync", { home: A.id }).then(function () { reloadA("Calendar read"); }, function () {});
+    if (d.do === "emails") act("emails", {}).then(function () { toast("Emails read"); go("settings"); }, function () {});
+    if (d.do === "concierge") act("property", { concierge: { enabled: d.on === "1" } }).then(function () { go("settings"); }, function () {});
+    if (d.do === "add-cat") { $("p-cats").insertAdjacentHTML("beforeend", '<div class="card" data-cat="1"><div class="row"><label>Category<input data-cname="1" maxlength="40"></label><button type="button" class="small danger" data-rmcat="1">Remove category</button></div><div data-items="new" style="margin-top:10px"></div></div>');
+      var els = document.querySelectorAll('[data-items="new"]'); listEditor(els[els.length - 1], [], PF, "Add a place"); }
+  });
+  document.addEventListener("submit", function (e) {
+    var f = e.target; if (f.id === "lf" || f.id === "ef") return;
+    e.preventDefault();
+    if (f.id === "bf") return act("booking/add", { home: A.id, guest: $("b-guest").value, arrive: $("b-arrive").value, depart: $("b-depart").value, guests: $("b-guests").value, note: $("b-note").value }).then(function () { reloadA("Booking added"); }, function () {});
+    if (f.id === "df") return act("apartment/save", { id: A.id, name: $("d-name").value, label: $("d-label").value, checkin: $("d-in").value, checkout: $("d-out").value,
+      wifi: { ssid: $("d-ssid").value, password: $("d-wpw").value }, reception: { name: $("d-rn").value, phone: $("d-rp").value, whatsapp: $("d-rw").value, hours: $("d-rh").value, note: $("d-rnote").value },
+      guest_apps: [].map.call(f.querySelectorAll("[name=app]:checked"), function (i) { return i.value; }), ical_url: $("d-ical").value }).then(function () { load().then(function () { reloadA("Saved. The TV follows within seconds."); }); }, function () {});
+    if (f.id === "gf") return act("guide/save", { id: A.id, welcome: $("g-welcome").value, rules: $("g-rules").read(), howto: $("g-howto").read(),
+      checkout_steps: $("g-steps").value.split("\n"), emergency: $("g-emg").read() }).then(function () { reloadA("Guide saved"); }, function () {});
+    if (f.id === "pf") return act("guide/save", { id: A.id, local: [].map.call(document.querySelectorAll("[data-cat]"), function (c) {
+      return { category: c.querySelector("[data-cname]").value, items: c.querySelector("[data-items]").read() }; }) }).then(function () { reloadA("Places saved"); }, function () {});
+    if (f.id === "tf") return act("tv/save", { home: A.id, name: $("t-name").value }).then(function () { reloadA("TV added (simulated until it passes a check)"); }, function () {});
+    if (f.dataset.tvform) { var b = { tv: f.dataset.tvform }; f.querySelectorAll("[data-f]").forEach(function (i) { b[i.dataset.f] = i.value; });
+      return act("tv/save", b).then(function () { load().then(function () { reloadA("TV saved"); }); }, function () {}); }
+    if (f.id === "sf") return act("property", { name: $("s-name").value, reception: { name: $("s-rn").value, phone: $("s-rp").value, whatsapp: $("s-rw").value, hours: $("s-rh").value, note: $("s-rnote").value } }).then(function () { toast("Saved"); go("settings"); }, function () {});
+    if (f.id === "pwf") return act("password", { old: $("pw-old").value, new: $("pw-new").value }).then(function () { toast("Password changed"); go("settings"); }, function () {});
+  });
+  document.addEventListener("change", function (e) {
+    var i = e.target; if (!i.dataset || !i.dataset.photo || !i.files[0]) return;
+    var fr = new FileReader();
+    toast("Uploading the photograph");
+    fr.onload = function () { act("photo", { id: A.id, which: i.dataset.photo, data: fr.result }).then(function () { reloadA("Photograph saved. The TV picks it up within seconds."); }, function () {}); };
+    fr.readAsDataURL(i.files[0]);
+  });
+
+  function start() {
+    fetch("/api/host/session").then(function (r) { return r.json(); }).then(function (s) {
+      SES = s; document.title = s.property + " · Host dashboard";
+      if (!s.authed) return drawLogin();
+      go("overview");
+    });
+  }
+  start();
+})();
+</script>
+</body>
+</html>
